@@ -15,10 +15,6 @@ LabelledVSlider::LabelledVSlider(const juce::String& title)
     addAndMakeVisible(slider);
 }
 
-void LabelledVSlider::paintOverChildren(juce::Graphics& g)
-{
-}
-
 void LabelledVSlider::resized()
 {
     auto a = getLocalBounds();

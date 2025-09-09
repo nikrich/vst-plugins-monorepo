@@ -1,4 +1,4 @@
-#include "PluginEditor.h"
+﻿#include "PluginEditor.h"
 
 HungryGhostLimiterAudioProcessorEditor::HungryGhostLimiterAudioProcessorEditor(HungryGhostLimiterAudioProcessor& p)
     : juce::AudioProcessorEditor(&p)
@@ -11,12 +11,24 @@ HungryGhostLimiterAudioProcessorEditor::HungryGhostLimiterAudioProcessorEditor(H
     setLookAndFeel(&lnf);
     setResizable(false, false);
     setOpaque(true);
-    setSize(503, 284);
+    setSize(503, 400);
 
-    title.setText("HUNGRY GHOST LIMITER", juce::dontSendNotification);
-    title.setJustificationType(juce::Justification::centred);
-    title.setFont(juce::Font(juce::FontOptions(16.0f)));
-    addAndMakeVisible(title);
+    auto logoImage = juce::ImageFileFormat::loadFrom(BinaryData::logo_png,
+        BinaryData::logo_pngSize);
+    logoComp.setImage(logoImage, juce::RectanglePlacement::centred);
+    logoComp.setInterceptsMouseClicks(false, false);
+    addAndMakeVisible(logoComp);
+
+    // optional text under the logo
+    logoSub.setText("LIMITER", juce::dontSendNotification);
+    logoSub.setJustificationType(juce::Justification::centred);
+    logoSub.setColour(juce::Label::textColourId, juce::Colours::white.withAlpha(0.9f));
+    logoSub.setFont(juce::Font(juce::FontOptions(13.0f)));
+    logoSub.setInterceptsMouseClicks(false, false);
+    addAndMakeVisible(logoSub);
+
+    // hide the old title if you had one
+    title.setVisible(false);
 
     // Skin Threshold L/R with the pill L&F
     threshold.setSliderLookAndFeel(&pillLNF);
@@ -26,6 +38,11 @@ HungryGhostLimiterAudioProcessorEditor::HungryGhostLimiterAudioProcessorEditor(H
     addAndMakeVisible(threshold);
     addAndMakeVisible(ceiling);
     addAndMakeVisible(release);
+
+	// Attenuation Meter
+    attenMeter.setBarWidth(12);      // thinner
+    attenMeter.setTopDown(true);     // reverse: top → bottom
+    attenMeter.setShowTicks(true);   // or false if you want a super-clean bar
 
     attenLabel.setText("ATTEN", juce::dontSendNotification);
     attenLabel.setJustificationType(juce::Justification::centred);
@@ -54,9 +71,26 @@ void HungryGhostLimiterAudioProcessorEditor::paint(juce::Graphics& g)
 void HungryGhostLimiterAudioProcessorEditor::resized()
 {
     auto a = getLocalBounds().reduced(10);
-    auto header = a.removeFromTop(26);
-    title.setBounds(header);
 
+    // reserve a header row for the logo
+    auto header = a.removeFromTop(50); // tweak height to taste
+
+    // size the logo by image aspect ratio, centered in header
+    int logoH = 135;   // desired pixel height
+    int logoW = 335;   // fallback width
+
+    if (auto img = logoComp.getImage(); img.isValid())
+        logoW = (int)std::round(img.getWidth() * (logoH / (double)img.getHeight()));
+
+    // make sure it fits the header
+    auto logoBounds = header.withSizeKeepingCentre(logoW, logoH);
+    logoComp.setBounds(logoBounds);
+	logoComp.setTopLeftPosition(logoBounds.getX(), logoBounds.getY() - 10);
+
+    // subtext sits right under the logo, same width
+    logoSub.setBounds(logoBounds.withY(logoBounds.getBottom() - 55).withHeight(16));
+
+    // ---- your existing layout below ----
     auto left = a.removeFromLeft(a.proportionOfWidth(0.65f)).reduced(10);
     auto right = a.reduced(10);
 

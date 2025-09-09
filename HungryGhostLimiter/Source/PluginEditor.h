@@ -26,6 +26,8 @@ private:
     PillVSliderLNF pillLNF;
 
     juce::Label title;
+    juce::ImageComponent logoComp;   // centered logo at the top
+    juce::Label          logoSub;    // optional "LIMITER" text under the logo
 
     StereoThreshold threshold;
     LabelledVSlider ceiling, release;

@@ -6,7 +6,6 @@ class LabelledVSlider : public juce::Component
 public:
     explicit LabelledVSlider(const juce::String& title);
 
-    void paintOverChildren(juce::Graphics& g) override;
     void resized() override;
 
     void setSliderLookAndFeel(juce::LookAndFeel* lnf);
