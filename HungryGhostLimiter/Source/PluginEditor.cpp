@@ -20,6 +20,8 @@ HungryGhostLimiterAudioProcessorEditor::HungryGhostLimiterAudioProcessorEditor(H
 
     // Skin Threshold L/R with the pill L&F
     threshold.setSliderLookAndFeel(&pillLNF);
+	ceiling.setSliderLookAndFeel(&pillLNF);
+	release.setSliderLookAndFeel(&pillLNF);
 
     addAndMakeVisible(threshold);
     addAndMakeVisible(ceiling);

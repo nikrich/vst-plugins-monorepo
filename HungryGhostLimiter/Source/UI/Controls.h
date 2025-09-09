@@ -9,6 +9,8 @@ public:
     void paintOverChildren(juce::Graphics& g) override;
     void resized() override;
 
+    void setSliderLookAndFeel(juce::LookAndFeel* lnf);
+
     juce::Label  label;
     juce::Slider slider;
 
