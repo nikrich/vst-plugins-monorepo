@@ -35,6 +35,18 @@ private:
     AttenMeter  attenMeter;
     juce::Label attenLabel;
 
+    // after 'LabelledVSlider ceiling, release;'
+    LabelledVSlider lookAhead;          // "LOOK-AHEAD"
+
+    juce::ToggleButton scHpfToggle{ "SC HPF" };
+    juce::ToggleButton safetyToggle{ "SAFETY" };
+
+    NeonToggleLNF neonToggleLNF;
+
+    // attachments
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> laAttach;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> hpfAttach;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> safAttach;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> clAttach;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> reAttach;
 

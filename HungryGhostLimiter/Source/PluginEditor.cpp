@@ -7,6 +7,7 @@ HungryGhostLimiterAudioProcessorEditor::HungryGhostLimiterAudioProcessorEditor(H
     , ceiling("OUT CEILING")
     , release("RELEASE")
     , attenMeter("ATTENUATION")
+    , lookAhead("LOOK-AHEAD")
 {
     setLookAndFeel(&lnf);
     setResizable(false, false);
@@ -39,6 +40,16 @@ HungryGhostLimiterAudioProcessorEditor::HungryGhostLimiterAudioProcessorEditor(H
     addAndMakeVisible(ceiling);
     addAndMakeVisible(release);
 
+    // inside constructor, after release etc. are made visible:
+    lookAhead.setSliderLookAndFeel(&pillLNF);
+    addAndMakeVisible(lookAhead);
+
+    // toggles
+    scHpfToggle.setLookAndFeel(&neonToggleLNF);
+    safetyToggle.setLookAndFeel(&neonToggleLNF);
+    addAndMakeVisible(scHpfToggle);
+    addAndMakeVisible(safetyToggle);
+
 	// Attenuation Meter
     attenMeter.setBarWidth(12);      // thinner
     attenMeter.setTopDown(true);     // reverse: top → bottom
@@ -53,6 +64,9 @@ HungryGhostLimiterAudioProcessorEditor::HungryGhostLimiterAudioProcessorEditor(H
     // APVTS attachments for the remaining sliders
     clAttach = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(proc.apvts, "outCeiling", ceiling.slider);
     reAttach = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(proc.apvts, "release", release.slider);
+    laAttach = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(proc.apvts, "lookAheadMs", lookAhead.slider);
+    hpfAttach = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(proc.apvts, "scHpf", scHpfToggle);
+    safAttach = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(proc.apvts, "safetyClip", safetyToggle);
 
     startTimerHz(30);
 }
@@ -64,44 +78,65 @@ HungryGhostLimiterAudioProcessorEditor::~HungryGhostLimiterAudioProcessorEditor(
 
 void HungryGhostLimiterAudioProcessorEditor::paint(juce::Graphics& g)
 {
-    // background #192033
-    g.fillAll(juce::Colour(0xFF192033));
+    g.fillAll(juce::Colour(0xFF192033)); // deep navy
+
+    // optional: subtle panel behind right meter
+    auto bounds = getLocalBounds().reduced(10);
+    auto rightPanel = bounds.removeFromRight((int)std::round(bounds.getWidth() * 0.30)).reduced(12);
+    juce::DropShadow ds(juce::Colours::black.withAlpha(0.5f), 20, {});
+    ds.drawForRectangle(g, rightPanel);
+    g.setColour(juce::Colour(0xFF141821));
+    g.fillRoundedRectangle(rightPanel.toFloat(), 12.0f);
 }
 
 void HungryGhostLimiterAudioProcessorEditor::resized()
 {
     auto a = getLocalBounds().reduced(10);
 
-    // reserve a header row for the logo
-    auto header = a.removeFromTop(50); // tweak height to taste
-
-    // size the logo by image aspect ratio, centered in header
-    int logoH = 135;   // desired pixel height
-    int logoW = 335;   // fallback width
-
+    // header (logo) stays the same …
+    auto header = a.removeFromTop(50);
+    int logoH = 135, logoW = 335;
     if (auto img = logoComp.getImage(); img.isValid())
         logoW = (int)std::round(img.getWidth() * (logoH / (double)img.getHeight()));
-
-    // make sure it fits the header
     auto logoBounds = header.withSizeKeepingCentre(logoW, logoH);
     logoComp.setBounds(logoBounds);
-	logoComp.setTopLeftPosition(logoBounds.getX(), logoBounds.getY() - 10);
-
-    // subtext sits right under the logo, same width
+    logoComp.setTopLeftPosition(logoBounds.getX(), logoBounds.getY() - 10);
     logoSub.setBounds(logoBounds.withY(logoBounds.getBottom() - 55).withHeight(16));
 
-    // ---- your existing layout below ----
+    // content
     auto left = a.removeFromLeft(a.proportionOfWidth(0.65f)).reduced(10);
     auto right = a.reduced(10);
 
+    // three columns for Threshold / Ceiling / Release
     auto colW = left.getWidth() / 3;
-    threshold.setBounds(left.removeFromLeft(colW).reduced(8));
-    ceiling.setBounds(left.removeFromLeft(colW).reduced(8));
-    release.setBounds(left.removeFromLeft(colW).reduced(8));
+    auto col1 = left.removeFromLeft(colW).reduced(8);
+    auto col2 = left.removeFromLeft(colW).reduced(8);
+    auto col3 = left.reduced(8);
 
+    threshold.setBounds(col1);
+    ceiling.setBounds(col2);
+    release.setBounds(col3);
+
+    // look-ahead spans beneath all three columns
+    auto laH = 58;
+    auto laArea = juce::Rectangle<int>(col1.getX(), col1.getBottom() + 10,
+        col3.getRight() - col1.getX(), laH);
+    lookAhead.setBounds(laArea);
+
+    // meter + toggles on the right
     auto rTop = right.removeFromTop(20);
     attenLabel.setBounds(rTop);
-    attenMeter.setBounds(right.withTrimmedTop(4));
+    auto meterArea = right.withTrimmedTop(4);
+    // leave space at bottom for toggles
+    auto toggleHeight = 28;
+    meterArea.removeFromBottom(toggleHeight + 10);
+    attenMeter.setBounds(meterArea);
+
+    // toggles arranged horizontally under the meter
+    auto toggles = right.removeFromBottom(toggleHeight);
+    auto half = toggles.removeFromLeft(toggles.getWidth() / 2).reduced(4);
+    scHpfToggle.setBounds(half);
+    safetyToggle.setBounds(toggles.reduced(4));
 }
 
 void HungryGhostLimiterAudioProcessorEditor::timerCallback()
