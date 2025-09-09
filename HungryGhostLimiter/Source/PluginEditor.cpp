@@ -106,6 +106,8 @@ void HungryGhostLimiterAudioProcessorEditor::resized()
 
 void HungryGhostLimiterAudioProcessorEditor::timerCallback()
 {
-    attenMeter.setDb(proc.getSmoothedAttenDb());
-    attenMeter.repaint();
+    attenMeter.setDb(proc.getSmoothedAttenDb()); // feed raw or lightly-smoothed dB
+    // no repaint() — meter repaints itself at 60 Hz
+    // (optional) once during setup:
+    attenMeter.setSmoothing(30.0f, 180.0f); // attackMs, releaseMs
 }

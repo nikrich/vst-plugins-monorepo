@@ -1,18 +1,18 @@
 /*
   ==============================================================================
-
-    This file contains the basic framework code for a JUCE plugin processor.
-
+    HungryGhostLimiter — true-peak look-ahead limiter (JUCE)
   ==============================================================================
 */
 
 #pragma once
 
 #include <JuceHeader.h>
+#include <array>
+#include <vector>
+#include <cmath>
 
 //==============================================================================
-/**
-*/
+
 class HungryGhostLimiterAudioProcessor : public juce::AudioProcessor
 {
 public:
@@ -55,8 +55,110 @@ public:
     float getSmoothedAttenDb() const { return attenDbSmoothed.getCurrentValue(); }
 
 private:
+    // ========= Parameters we read every block =========
     float sampleRateHz = 44100.0f;
+    int   osFactor = 1;        // 1, 4, or 8 (set in prepare based on sample rate)
+    float osSampleRate = 44100.0f; // sampleRateHz * osFactor
+
+    // --- meter smoothing (host-rate) ---
     juce::LinearSmoothedValue<float> attenDbSmoothed{ 0.0f };
+
+    // ========= Oversampling =========
+    std::unique_ptr<juce::dsp::Oversampling<float>> oversampler; // built in prepare
+    int oversamplingLatencyNative = 0; // in native samples
+
+    // ========= Look-ahead delay (per channel, at OS rate) =========
+    struct LookaheadDelay
+    {
+        void reset(int capacitySamples)
+        {
+            buf.assign((size_t)juce::jmax(capacitySamples, 1), 0.0f);
+            w = 0;
+        }
+
+        inline float processSample(float x, int delaySamples) noexcept
+        {
+            // returns x delayed by delaySamples; delay <= buf.size()
+            const int cap = (int)buf.size();
+            int r = w - delaySamples;
+            if (r < 0) r += cap;
+
+            const float y = buf[(size_t)r];
+            buf[(size_t)w] = x;
+
+            if (++w == cap) w = 0;
+            return y;
+        }
+
+        std::vector<float> buf;
+        int w = 0;
+    };
+
+    LookaheadDelay delayL, delayR;
+
+    // ========= Sliding-window maximum (monotonic queue, allocation-free in audio) =========
+    struct SlidingMax
+    {
+        void reset(int capacitySamples)
+        {
+            // capacity is the maximum look-ahead window we’ll ever use
+            vals.assign((size_t)juce::jmax(capacitySamples + 8, 32), 0.0f);
+            idxs.assign(vals.size(), 0);
+            head = tail = 0;
+            currentIdx = 0;
+            capacity = (int)vals.size();
+        }
+
+        inline void push(float v, int windowSamples) noexcept
+        {
+            // pop smaller items from the tail
+            while (head != tail)
+            {
+                const int last = (tail + capacity - 1) % capacity;
+                if (v <= vals[(size_t)last]) break;
+                tail = last; // drop the last item
+            }
+
+            vals[(size_t)tail] = v;
+            idxs[(size_t)tail] = currentIdx;
+            tail = (tail + 1) % capacity;
+
+            // purge items that are out of the window from the head
+            const int lowerBound = currentIdx - windowSamples;
+            while (head != tail && idxs[(size_t)head] <= lowerBound)
+                head = (head + 1) % capacity;
+
+            ++currentIdx;
+        }
+
+        inline float getMax() const noexcept
+        {
+            return (head != tail) ? vals[(size_t)head] : 0.0f;
+        }
+
+        std::vector<float> vals;
+        std::vector<int>   idxs;
+        int head = 0, tail = 0, capacity = 0;
+        int currentIdx = 0;
+    };
+
+    SlidingMax slidingMax; // runs at OS rate
+
+    // ========= Sidechain HPF (at OS rate) =========
+    juce::dsp::IIR::Filter<float> scHPF_L, scHPF_R;
+    juce::dsp::IIR::Coefficients<float>::Ptr scHPFCoefs;
+
+    // ========= Gain computer state =========
+    float currentGainDb = 0.0f; // <= 0 dB; negative means attenuation
+
+    // ========= Helpers =========
+    void buildOversampler(double sr, int samplesPerBlockExpected);
+    void updateSidechainFilter();
+    void updateLatencyReport(); // calls setLatencySamples()
+
+    // --- cached derived values (updated per block) ---
+    int   lookAheadSamplesOS = 0;      // at OS rate
+    float releaseAlphaOS = 0.0f;   // one-pole release coefficient at OS rate
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(HungryGhostLimiterAudioProcessor)
 };
