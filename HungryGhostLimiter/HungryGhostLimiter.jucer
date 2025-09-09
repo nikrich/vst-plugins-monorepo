@@ -4,6 +4,15 @@
               useAppConfig="0" addUsingNamespaceToJuceHeader="0" jucerFormatVersion="1">
   <MAINGROUP id="pzXCLk" name="HungryGhostLimiter">
     <GROUP id="{664B6E4B-27FA-58CC-5AD0-C349623B60C5}" name="Source">
+      <FILE id="lYkIXc" name="Threshold.cpp" compile="1" resource="0" file="Source/UI/Threshold.cpp"/>
+      <FILE id="QX9OUk" name="Threshold.h" compile="0" resource="0" file="Source/UI/Threshold.h"/>
+      <FILE id="NBnaaW" name="Meter.cpp" compile="1" resource="0" file="Source/UI/Meter.cpp"/>
+      <FILE id="rXaRMX" name="Meter.h" compile="0" resource="0" file="Source/UI/Meter.h"/>
+      <FILE id="VtINXc" name="Controls.cpp" compile="1" resource="0" file="Source/UI/Controls.cpp"/>
+      <FILE id="MKC8OS" name="Controls.h" compile="0" resource="0" file="Source/UI/Controls.h"/>
+      <FILE id="jGXWCL" name="LookAndFeels.cpp" compile="1" resource="0"
+            file="Source/Styling/LookAndFeels.cpp"/>
+      <FILE id="XE22YN" name="LookAndFeels.h" compile="0" resource="0" file="Source/Styling/LookAndFeels.h"/>
       <FILE id="fHnlKx" name="PluginProcessor.cpp" compile="1" resource="0"
             file="Source/PluginProcessor.cpp"/>
       <FILE id="gTl7Ps" name="PluginProcessor.h" compile="0" resource="0"
