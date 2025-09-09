@@ -24,35 +24,43 @@ void HungryGhostLimiterAudioProcessor::processBlock(juce::AudioBuffer<float>& bu
 {
     juce::ScopedNoDenormals _;
 
-    auto* threshParam = apvts.getRawParameterValue("threshold");
+    auto* thLParam = apvts.getRawParameterValue("thresholdL");
+    auto* thRParam = apvts.getRawParameterValue("thresholdR");
+    auto* linkParam = apvts.getRawParameterValue("thresholdLink");
     auto* ceilParam = apvts.getRawParameterValue("outCeiling");
     auto* relParam = apvts.getRawParameterValue("release");
 
-    const float thresholdDb = threshParam->load();
+    float thL = thLParam->load();
+    float thR = thRParam->load();
+    const bool linked = (linkParam->load() > 0.5f);
+    if (linked) thR = thL; // link behavior at DSP level, UI also mirrors
+
     const float ceilingDb = ceilParam->load();
-    const float preGain = juce::Decibels::decibelsToGain(-thresholdDb);
-    const float ceilingLin = juce::Decibels::decibelsToGain(ceilingDb);
+    const float ceilLin = juce::Decibels::decibelsToGain(ceilingDb);
+    const float preGainL = juce::Decibels::decibelsToGain(-thL);
+    const float preGainR = juce::Decibels::decibelsToGain(-thR);
 
     float maxAttenDbThisBlock = 0.0f;
-    const int numCh = buffer.getNumChannels();
     const int numSmps = buffer.getNumSamples();
+    const int nCh = juce::jmin(2, buffer.getNumChannels());
 
-    for (int ch = 0; ch < numCh; ++ch)
+    for (int ch = 0; ch < nCh; ++ch)
     {
         float* x = buffer.getWritePointer(ch);
+        const float pre = (ch == 0 ? preGainL : preGainR);
+
         for (int n = 0; n < numSmps; ++n)
         {
-            float s = x[n] * preGain;
+            float s = x[n] * pre;
             const float a = std::abs(s);
 
-            if (a > ceilingLin)
+            if (a > ceilLin)
             {
-                const float gr = ceilingLin / (a + 1.0e-12f);
+                const float gr = ceilLin / (a + 1.0e-12f);
                 s *= gr;
                 const float attenDb = -juce::Decibels::gainToDecibels(gr);
                 if (attenDb > maxAttenDbThisBlock) maxAttenDbThisBlock = attenDb;
             }
-
             x[n] = s;
         }
     }
@@ -86,10 +94,19 @@ juce::AudioProcessorValueTreeState::ParameterLayout HungryGhostLimiterAudioProce
     using namespace juce;
     std::vector<std::unique_ptr<RangedAudioParameter>> params;
 
+    // --- NEW: stereo threshold & link ---
     params.push_back(std::make_unique<AudioParameterFloat>(
-        ParameterID{ "threshold", 1 }, "Threshold",
+        ParameterID{ "thresholdL", 1 }, "Threshold L",
         NormalisableRange<float>(-24.0f, 0.0f, 0.01f, 0.6f), -10.0f));
 
+    params.push_back(std::make_unique<AudioParameterFloat>(
+        ParameterID{ "thresholdR", 1 }, "Threshold R",
+        NormalisableRange<float>(-24.0f, 0.0f, 0.01f, 0.6f), -10.0f));
+
+    params.push_back(std::make_unique<AudioParameterBool>(
+        ParameterID{ "thresholdLink", 1 }, "Link Threshold", true));
+
+    // keep the rest
     params.push_back(std::make_unique<AudioParameterFloat>(
         ParameterID{ "outCeiling", 1 }, "Out Ceiling",
         NormalisableRange<float>(-24.0f, 0.0f, 0.01f, 0.8f), -0.2f));

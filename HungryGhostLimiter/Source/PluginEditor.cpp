@@ -29,7 +29,9 @@ void LabelledVSlider::paintOverChildren(juce::Graphics& g)
     r.removeFromTop(18.0f); // space around thumb/text
     juce::ColourGradient grad(juce::Colour::fromRGB(250, 212, 65), r.getBottomLeft(),
         juce::Colour::fromRGB(220, 40, 30), r.getTopLeft(), false);
-    // g.setGradientFill(grad.withAlpha(0.85f));
+    juce::FillType ft(grad);
+    ft.setOpacity(0.85f);
+    g.setFillType(ft);
     g.fillRoundedRectangle(r, 3.0f);
 
     g.setColour(juce::Colours::white.withAlpha(0.15f));
@@ -43,8 +45,9 @@ void LabelledVSlider::resized()
     slider.setBounds(a);
 }
 
-AttenMeter::AttenMeter()
+AttenMeter::AttenMeter(const juce::String& title)
 {
+    // TODO Implement Header
 }
 
 // ---------- AttenMeter ----------
@@ -87,25 +90,102 @@ void AttenMeter::paint(juce::Graphics& g)
     for (int d : { 0, 1, 2, 3, 6, 9, 12 }) drawTick(d);
 }
 
+// ---------- StereoThreshold ----------
+StereoThreshold::StereoThreshold(HungryGhostLimiterAudioProcessor::APVTS& apvts)
+{
+    title.setJustificationType(juce::Justification::centred);
+    title.setInterceptsMouseClicks(false, false);
+    title.setColour(juce::Label::textColourId, juce::Colours::white.withAlpha(0.9f));
+    addAndMakeVisible(title);
+
+    auto initSlider = [](juce::Slider& s)
+        {
+            s.setSliderStyle(juce::Slider::LinearBarVertical);
+            s.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 60, 18);
+            s.setColour(juce::Slider::trackColourId, juce::Colours::transparentBlack);
+            s.setColour(juce::Slider::thumbColourId, juce::Colour::fromRGB(210, 210, 210));
+        };
+    initSlider(sliderL);
+    initSlider(sliderR);
+
+    addAndMakeVisible(sliderL);
+    addAndMakeVisible(sliderR);
+
+    labelL.setJustificationType(juce::Justification::centred);
+    labelR.setJustificationType(juce::Justification::centred);
+    labelL.setInterceptsMouseClicks(false, false);
+    labelR.setInterceptsMouseClicks(false, false);
+    addAndMakeVisible(labelL);
+    addAndMakeVisible(labelR);
+
+    addAndMakeVisible(linkButton);
+
+    // APVTS attachments
+    attL = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(apvts, "thresholdL", sliderL);
+    attR = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(apvts, "thresholdR", sliderR);
+    attLink = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(apvts, "thresholdLink", linkButton);
+
+    // mirror behavior when linked
+    auto mirror = [this](juce::Slider* src, juce::Slider* dst)
+        {
+            if (syncing || !linkButton.getToggleState()) return;
+            syncing = true;
+            dst->setValue(src->getValue(), juce::sendNotificationSync);
+            syncing = false;
+        };
+    sliderL.onValueChange = [=] { mirror(&sliderL, &sliderR); };
+    sliderR.onValueChange = [=] { mirror(&sliderR, &sliderL); };
+}
+
+void StereoThreshold::resized()
+{
+    auto a = getLocalBounds();
+    title.setBounds(a.removeFromTop(20));
+
+    auto area = a.reduced(6);
+    int gap = 8;
+    auto left = area.removeFromLeft(area.getWidth() / 2 - gap / 2);
+    area.removeFromLeft(gap);
+    auto right = area;
+
+    labelL.setBounds(left.removeFromTop(16));
+    sliderL.setBounds(left);
+
+    labelR.setBounds(right.removeFromTop(16));
+    sliderR.setBounds(right);
+
+    auto bottom = getLocalBounds().removeFromBottom(20);
+    linkButton.setBounds(bottom.removeFromRight(70));
+}
+
+// Handled by LookAndFeel now
+void StereoThreshold::paintOverChildren(juce::Graphics&) {}
+
+void StereoThreshold::setSliderLookAndFeel(juce::LookAndFeel* lnf)
+{
+    sliderL.setLookAndFeel(lnf);
+    sliderR.setLookAndFeel(lnf);
+}
+
 // ---------- HungryGhostLimiterAudioProcessorEditor ----------
 HungryGhostLimiterAudioProcessorEditor::HungryGhostLimiterAudioProcessorEditor(HungryGhostLimiterAudioProcessor& p)
     : juce::AudioProcessorEditor(&p)
     , proc(p)
-    , threshold("THRESHOLD")
+    , threshold(proc.apvts)              // StereoThreshold member
     , ceiling("OUT CEILING")
+    , attenMeter("ATTENUATION")
     , release("RELEASE")
-    , thAttach(proc.apvts, "threshold", threshold.slider)
-    , clAttach(proc.apvts, "outCeiling", ceiling.slider)
-    , reAttach(proc.apvts, "release", release.slider)
 {
     setLookAndFeel(&lnf);
     setResizable(false, false);
-    setSize(503, 284); // matches the reference image
+    setSize(503, 284);
 
     title.setText("HUNGRY GHOST LIMITER", juce::dontSendNotification);
     title.setJustificationType(juce::Justification::centred);
-    title.setFont(juce::Font(16.0f, juce::Font::bold));
+    title.setFont(juce::Font(juce::FontOptions(16.0f)));
     addAndMakeVisible(title);
+
+    threshold.setSliderLookAndFeel(&pillLNF);
 
     addAndMakeVisible(threshold);
     addAndMakeVisible(ceiling);
@@ -116,6 +196,10 @@ HungryGhostLimiterAudioProcessorEditor::HungryGhostLimiterAudioProcessorEditor(H
     attenLabel.setInterceptsMouseClicks(false, false);
     addAndMakeVisible(attenLabel);
     addAndMakeVisible(attenMeter);
+
+    // attachments for the remaining sliders
+    clAttach = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(proc.apvts, "outCeiling", ceiling.slider);
+    reAttach = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(proc.apvts, "release", release.slider);
 
     startTimerHz(30);
 }
@@ -128,8 +212,8 @@ HungryGhostLimiterAudioProcessorEditor::~HungryGhostLimiterAudioProcessorEditor(
 void HungryGhostLimiterAudioProcessorEditor::paint(juce::Graphics& g)
 {
     auto b = getLocalBounds().toFloat();
-    juce::Colour top = juce::Colour::fromRGB(195, 180, 150);
-    juce::Colour bot = juce::Colour::fromRGB(170, 155, 130);
+    juce::Colour top = juce::Colour::fromRGB(27, 34, 51);
+    juce::Colour bot = juce::Colour::fromRGB(19, 20, 33);
     g.setGradientFill(juce::ColourGradient(top, b.getX(), b.getY(),
         bot, b.getX(), b.getBottom(), false));
     g.fillRect(b);
@@ -148,7 +232,7 @@ void HungryGhostLimiterAudioProcessorEditor::resized()
     auto right = a.reduced(10);
 
     auto colW = left.getWidth() / 3;
-    threshold.setBounds(left.removeFromLeft(colW).reduced(8));
+    threshold.setBounds(left.removeFromLeft(colW).reduced(8)); // Stereo version
     ceiling.setBounds(left.removeFromLeft(colW).reduced(8));
     release.setBounds(left.removeFromLeft(colW).reduced(8));
 
