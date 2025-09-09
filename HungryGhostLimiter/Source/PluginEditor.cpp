@@ -12,7 +12,7 @@ HungryGhostLimiterAudioProcessorEditor::HungryGhostLimiterAudioProcessorEditor(H
     setLookAndFeel(&lnf);
     setResizable(false, false);
     setOpaque(true);
-    setSize(503, 400);
+    setSize(760, 460); // was 503x400 → give the UI room
 
     auto logoImage = juce::ImageFileFormat::loadFrom(BinaryData::logo_png,
         BinaryData::logo_pngSize);
@@ -33,8 +33,11 @@ HungryGhostLimiterAudioProcessorEditor::HungryGhostLimiterAudioProcessorEditor(H
 
     // Skin Threshold L/R with the pill L&F
     threshold.setSliderLookAndFeel(&pillLNF);
-	ceiling.setSliderLookAndFeel(&pillLNF);
-	release.setSliderLookAndFeel(&pillLNF);
+    ceiling.setSliderLookAndFeel(&pillLNF);
+
+    release.slider.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
+    release.slider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 64, 18);
+    release.setSliderLookAndFeel(&donutLNF);
 
     addAndMakeVisible(threshold);
     addAndMakeVisible(ceiling);
@@ -91,52 +94,48 @@ void HungryGhostLimiterAudioProcessorEditor::paint(juce::Graphics& g)
 
 void HungryGhostLimiterAudioProcessorEditor::resized()
 {
-    auto a = getLocalBounds().reduced(10);
+    auto bounds = getLocalBounds().reduced(12);
 
-    // header (logo) stays the same …
-    auto header = a.removeFromTop(50);
-    int logoH = 135, logoW = 335;
+    // --- Header (logo + subtext) ---
+    auto header = bounds.removeFromTop(88);
+    int logoH = header.getHeight() - 20;
+    int logoW = 320;
     if (auto img = logoComp.getImage(); img.isValid())
         logoW = (int)std::round(img.getWidth() * (logoH / (double)img.getHeight()));
+
     auto logoBounds = header.withSizeKeepingCentre(logoW, logoH);
     logoComp.setBounds(logoBounds);
-    logoComp.setTopLeftPosition(logoBounds.getX(), logoBounds.getY() - 10);
-    logoSub.setBounds(logoBounds.withY(logoBounds.getBottom() - 55).withHeight(16));
 
-    // content
-    auto left = a.removeFromLeft(a.proportionOfWidth(0.65f)).reduced(10);
-    auto right = a.reduced(10);
+    logoSub.setBounds(logoBounds.withY(logoBounds.getBottom() - 16).withHeight(16));
 
-    // three columns for Threshold / Ceiling / Release
-    auto colW = left.getWidth() / 3;
-    auto col1 = left.removeFromLeft(colW).reduced(8);
-    auto col2 = left.removeFromLeft(colW).reduced(8);
-    auto col3 = left.reduced(8);
+    // --- Content area split: left controls / right meter ---
+    auto content = bounds;
+    auto left = content.removeFromLeft(juce::roundToInt(content.getWidth() * 0.66f)).reduced(8);
+    auto right = content.reduced(8);
+
+    // Left: 3 columns (Threshold, Ceiling, Release)
+    const int colGap = 10;
+    const int colW = (left.getWidth() - 2 * colGap) / 3;
+    auto col1 = left.removeFromLeft(colW); left.removeFromLeft(colGap);
+    auto col2 = left.removeFromLeft(colW); left.removeFromLeft(colGap);
+    auto col3 = left; // remaining
+
+    // Make inner padding consistent
+    col1 = col1.reduced(6); col2 = col2.reduced(6); col3 = col3.reduced(6);
 
     threshold.setBounds(col1);
     ceiling.setBounds(col2);
-    release.setBounds(col3);
 
-    // look-ahead spans beneath all three columns
-    auto laH = 58;
-    auto laArea = juce::Rectangle<int>(col1.getX(), col1.getBottom() + 10,
-        col3.getRight() - col1.getX(), laH);
-    lookAhead.setBounds(laArea);
+    // Release knob: square area near top, label already inside your LabelledVSlider
+    auto knobSize = juce::jmin(col3.getWidth(), juce::roundToInt(col3.getHeight() * 0.9f));
+    auto knobArea = juce::Rectangle<int>(0, 0, knobSize, knobSize)
+        .withCentre(col3.getCentre());
+    release.setBounds(knobArea);
 
-    // meter + toggles on the right
-    auto rTop = right.removeFromTop(20);
-    attenLabel.setBounds(rTop);
-    auto meterArea = right.withTrimmedTop(4);
-    // leave space at bottom for toggles
-    auto toggleHeight = 28;
-    meterArea.removeFromBottom(toggleHeight + 10);
-    attenMeter.setBounds(meterArea);
-
-    // toggles arranged horizontally under the meter
-    auto toggles = right.removeFromBottom(toggleHeight);
-    auto half = toggles.removeFromLeft(toggles.getWidth() / 2).reduced(4);
-    scHpfToggle.setBounds(half);
-    safetyToggle.setBounds(toggles.reduced(4));
+    // Right: Attenuation label + meter
+    auto meterLabel = right.removeFromTop(24);
+    attenLabel.setBounds(meterLabel);
+    attenMeter.setBounds(right.reduced(18, 6));
 }
 
 void HungryGhostLimiterAudioProcessorEditor::timerCallback()

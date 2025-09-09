@@ -24,6 +24,7 @@ private:
     HungryGhostLimiterAudioProcessor& proc;
     VibeLNF        lnf;
     PillVSliderLNF pillLNF;
+    DonutKnobLNF   donutLNF;
 
     juce::Label title;
     juce::ImageComponent logoComp;   // centered logo at the top
