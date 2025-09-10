@@ -6,7 +6,8 @@
 #include "UI/Controls.h"
 #include "UI/Meter.h"
 #include "UI/Threshold.h"
-
+#include "BinaryData.h"
+#include "Styling/Theme.h"
 class HungryGhostLimiterAudioProcessorEditor
     : public juce::AudioProcessorEditor
     , private juce::Timer

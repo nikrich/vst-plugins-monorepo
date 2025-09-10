@@ -3,6 +3,10 @@
 
 AttenMeter::AttenMeter(const juce::String&)
 {
+    // default colours from theme
+    auto& th = Style::theme();
+    setTrackColours(th.trackTop, th.trackBot);
+    setFillColours(th.fillTop, th.fillBot);
     startTimerHz(60); // animate smoothing ~60 FPS
 }
 

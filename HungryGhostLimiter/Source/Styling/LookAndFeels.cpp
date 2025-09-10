@@ -1,10 +1,26 @@
 #include "LookAndFeels.h"
+#include "BinaryData.h"
 
 // ----- VibeLNF -----
 VibeLNF::VibeLNF()
 {
-    setColour(juce::Slider::textBoxTextColourId, juce::Colours::white);
-    setColour(juce::Label::textColourId, juce::Colours::white.withAlpha(0.9f));
+    // Typography: set bundled Montserrat as default if available
+    auto loadTypeface = []() -> juce::Typeface::Ptr
+    {
+        int sz = 0;
+        const void* data = BinaryData::getNamedResource("Montserrat-VariableFont_wght.ttf", sz);
+        if (!data)
+            data = BinaryData::getNamedResource("Montserrat-Italic-VariableFont_wght.ttf", sz);
+        if (data && sz > 0)
+            return juce::Typeface::createSystemTypefaceFor(data, (size_t)sz);
+        return {};
+    };
+    if (auto tf = loadTypeface())
+        setDefaultSansSerifTypeface(tf);
+
+    auto& th = Style::theme();
+    setColour(juce::Slider::textBoxTextColourId, th.text);
+    setColour(juce::Label::textColourId, th.text);
 }
 
 // ----- PillVSliderLNF -----
@@ -21,8 +37,8 @@ void PillVSliderLNF::drawLinearSlider(juce::Graphics& g, int x, int y, int w, in
     const float radius = bounds.getWidth() * 0.5f;
 
     // track
-    juce::ColourGradient trackGrad(trackBgTop, bounds.getX(), bounds.getY(),
-        trackBgBot, bounds.getX(), bounds.getBottom(), false);
+    juce::ColourGradient trackGrad(Style::theme().trackTop, bounds.getX(), bounds.getY(),
+        Style::theme().trackBot, bounds.getX(), bounds.getBottom(), false);
     g.setGradientFill(trackGrad);
     g.fillRoundedRectangle(bounds, radius);
 
@@ -35,8 +51,8 @@ void PillVSliderLNF::drawLinearSlider(juce::Graphics& g, int x, int y, int w, in
     auto fill = bounds;
     fill.removeFromTop(fill.getHeight() * (float)(1.0 - juce::jlimit(0.0, 1.0, prop)));
 
-    juce::ColourGradient fillGrad(fillBottom, fill.getX(), fill.getBottom(),
-        fillTop, fill.getX(), fill.getY(), false);
+    juce::ColourGradient fillGrad(Style::theme().fillBot, fill.getX(), fill.getBottom(),
+        Style::theme().fillTop, fill.getX(), fill.getY(), false);
     g.setGradientFill(fillGrad);
     g.fillRoundedRectangle(fill, radius);
 

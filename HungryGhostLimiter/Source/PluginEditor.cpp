@@ -82,14 +82,15 @@ HungryGhostLimiterAudioProcessorEditor::~HungryGhostLimiterAudioProcessorEditor(
 
 void HungryGhostLimiterAudioProcessorEditor::paint(juce::Graphics& g)
 {
-    g.fillAll(juce::Colour(0xFF192033)); // deep navy
+    auto& th = Style::theme();
+    g.fillAll(th.bg);
 
-    // optional: subtle panel behind right meter
+    // subtle panel behind right meter
     auto bounds = getLocalBounds().reduced(10);
     auto rightPanel = bounds.removeFromRight((int)std::round(bounds.getWidth() * 0.30)).reduced(12);
-    juce::DropShadow ds(juce::Colours::black.withAlpha(0.5f), 20, {});
+    juce::DropShadow ds(juce::Colours::black.withAlpha(0.45f), 18, {});
     ds.drawForRectangle(g, rightPanel);
-    g.setColour(juce::Colour(0xFF141821));
+    g.setColour(th.panel);
     g.fillRoundedRectangle(rightPanel.toFloat(), 12.0f);
 }
 

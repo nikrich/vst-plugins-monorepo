@@ -1,5 +1,6 @@
-﻿#pragma once
+#pragma once
 #include <juce_gui_extra/juce_gui_extra.h>
+#include "Theme.h"
 
 // Simple app-wide tweaks
 struct VibeLNF : juce::LookAndFeel_V4
@@ -10,8 +11,6 @@ struct VibeLNF : juce::LookAndFeel_V4
 // Pill-shaped vertical slider skin (for Slider::LinearBarVertical)
 struct PillVSliderLNF : juce::LookAndFeel_V4
 {
-    juce::Colour trackBgTop{ 0xFF1B1F27 }, trackBgBot{ 0xFF141821 };
-    juce::Colour fillBottom{ 0xFFFFB34D }, fillTop{ 0xFFFF3B3B };
     float outlineAlpha{ 0.20f };
 
     void drawLinearSlider(juce::Graphics& g, int x, int y, int w, int h,
@@ -23,9 +22,6 @@ struct PillVSliderLNF : juce::LookAndFeel_V4
 // Neon / pill toggle for dark UI
 struct NeonToggleLNF : juce::LookAndFeel_V4
 {
-    juce::Colour offBg{ 0xFF141821 };
-    juce::Colour onGradInner{ 0xFFFFB34D }; // orange
-    juce::Colour onGradOuter{ 0xFFFF3B3B }; // red
     float radius = 10.0f;
 
     void drawToggleButton(juce::Graphics& g, juce::ToggleButton& b,
@@ -38,15 +34,15 @@ struct NeonToggleLNF : juce::LookAndFeel_V4
         const float rad = h * 0.5f;
 
         // pill body
-        g.setColour(offBg);
+        g.setColour(Style::theme().panel);
         g.fillRoundedRectangle(bg, rad);
 
         // on fill (glow gradient)
         if (b.getToggleState())
         {
-            juce::ColourGradient grad(onGradInner, bg.getX(), bg.getCentreY(),
-                onGradOuter, bg.getRight(), bg.getCentreY(), false);
-            grad.addColour(0.5, onGradInner);
+            juce::ColourGradient grad(Style::theme().accent2, bg.getX(), bg.getCentreY(),
+                Style::theme().accent1, bg.getRight(), bg.getCentreY(), false);
+            grad.addColour(0.5, Style::theme().accent2);
             g.setGradientFill(grad);
             auto onRect = bg.removeFromLeft(w * 0.58f);
             g.fillRoundedRectangle(onRect, rad);
@@ -82,9 +78,7 @@ struct NeonToggleLNF : juce::LookAndFeel_V4
 // Donut gradient rotary knob (dark UI, orange→red progress)
 struct DonutKnobLNF : juce::LookAndFeel_V4
 {
-    juce::Colour ringBg{ 0xFF141821 }; // background ring
-    juce::Colour ringStart{ 0xFFFFB34D }; // orange
-    juce::Colour ringEnd{ 0xFFFF3B3B }; // red
+    // colours via Style::theme() in draw
     juce::Colour face{ 0xFF0F131A }; // inner face
 
     void drawRotarySlider(juce::Graphics& g, int x, int y, int w, int h,
@@ -102,13 +96,13 @@ struct DonutKnobLNF : juce::LookAndFeel_V4
         // background ring
         juce::Path bg; bg.addCentredArc(centre.x, centre.y, radius, radius, 0.0f, startAngle, endAngle, true);
         juce::PathStrokeType stroke(radius - inner, juce::PathStrokeType::curved, juce::PathStrokeType::rounded);
-        g.setColour(ringBg);
+        g.setColour(Style::theme().panel);
         g.strokePath(bg, stroke);
 
         // value ring (gradient)
         juce::Path val; val.addCentredArc(centre.x, centre.y, radius, radius, 0.0f, startAngle, angle, true);
-        juce::ColourGradient grad(ringStart, centre.x - radius, centre.y + radius,
-            ringEnd, centre.x + radius, centre.y - radius, false);
+        juce::ColourGradient grad(Style::theme().fillBot, centre.x - radius, centre.y + radius,
+            Style::theme().fillTop, centre.x + radius, centre.y - radius, false);
         g.setGradientFill(grad);
         g.strokePath(val, stroke);
 
