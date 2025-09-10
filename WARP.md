@@ -6,7 +6,7 @@ Repository overview
 - This repo contains a JUCE-based audio plugin project: Hungry Ghost Limiter
   - Project root: HungryGhostLimiter/
   - Projucer project: HungryGhostLimiter/HungryGhostLimiter.jucer
-  - Source code: HungryGhostLimiter/Source/** (PluginProcessor.*, PluginEditor.*, UI/*, Styling/*)
+  - Source code: HungryGhostLimiter/Source/** (PluginProcessor.*, PluginEditor.*, ui/*, styling/*)
   - Auto-generated glue: HungryGhostLimiter/JuceLibraryCode/** (do not edit directly)
   - Vendored JUCE: HungryGhostLimiter/JUCE/** (JUCE 8; provides CMake and extras like Projucer, AudioPluginHost)
   - Assets: assets/** (fonts, logo)
@@ -82,7 +82,7 @@ High-level architecture (how this plugin is structured)
     - Controls.*: knobs/sliders and parameter attachments
     - Threshold.*: left/right threshold UI with link behavior
     - Meter.*: gain reduction or level metering components
-  - Styling: HungryGhostLimiter/Source/Styling/LookAndFeels.*
+  - Styling: HungryGhostLimiter/Source/styling/LookAndFeels.*
     - Custom LookAndFeel and font integration
   - Assets: assets/** (fonts/logo embedded via Projucer-generated BinaryData in JuceLibraryCode)
 - Auto-generated layer: HungryGhostLimiter/JuceLibraryCode/**

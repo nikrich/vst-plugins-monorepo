@@ -1,6 +1,6 @@
 ﻿#pragma once
 #include <juce_gui_extra/juce_gui_extra.h>
-#include "../Styling/Theme.h"
+#include "../styling/Theme.h"
 
 class AttenMeter : public juce::Component, private juce::Timer
 {

@@ -2,12 +2,12 @@
 #include <juce_gui_extra/juce_gui_extra.h>
 #include <memory>
 #include "PluginProcessor.h"
-#include "Styling/LookAndFeels.h"
-#include "UI/Controls.h"
-#include "UI/Meter.h"
-#include "UI/Threshold.h"
+#include "styling/LookAndFeels.h"
+#include "ui/Controls.h"
+#include "ui/Meter.h"
+#include "ui/Threshold.h"
 #include "BinaryData.h"
-#include "Styling/Theme.h"
+#include "styling/Theme.h"
 class HungryGhostLimiterAudioProcessorEditor
     : public juce::AudioProcessorEditor
     , private juce::Timer

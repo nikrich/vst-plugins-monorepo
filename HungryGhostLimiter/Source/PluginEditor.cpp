@@ -15,9 +15,12 @@ HungryGhostLimiterAudioProcessorEditor::HungryGhostLimiterAudioProcessorEditor(H
     setOpaque(true);
     setSize(760, 460); // was 503x400 → give the UI room
 
-    auto logoImage = juce::ImageFileFormat::loadFrom(BinaryData::logo_png,
-        BinaryData::logo_pngSize);
-    logoComp.setImage(logoImage, juce::RectanglePlacement::centred);
+    int logoSize = 0;
+    if (const auto* logoData = BinaryData::getNamedResource("logo_png", logoSize))
+    {
+        auto logoImage = juce::ImageFileFormat::loadFrom(logoData, (size_t) logoSize);
+        logoComp.setImage(logoImage, juce::RectanglePlacement::centred);
+    }
     logoComp.setInterceptsMouseClicks(false, false);
     addAndMakeVisible(logoComp);
 
@@ -129,10 +132,31 @@ void HungryGhostLimiterAudioProcessorEditor::resized()
     ceiling.setBounds(col2);
 
     // Release knob: square area near top, label already inside your LabelledVSlider
-    auto knobSize = juce::jmin(col3.getWidth(), juce::roundToInt(col3.getHeight() * 0.9f));
+    auto knobSize = juce::jmin(col3.getWidth(), juce::roundToInt(col3.getHeight() * 0.55f));
     auto knobArea = juce::Rectangle<int>(0, 0, knobSize, knobSize)
-        .withCentre(col3.getCentre());
+        .withCentre({ col3.getCentreX(), col3.getY() + knobSize / 2 + 6 });
     release.setBounds(knobArea);
+
+    // Look-ahead slider under the knob
+    {
+        const int laW = juce::jmin(60, col3.getWidth());
+        const int laH = juce::jmax(80, col3.getHeight() - knobArea.getBottom() - 44);
+        auto laArea = juce::Rectangle<int>(laW, laH)
+            .withCentre({ col3.getCentreX(), knobArea.getBottom() + 10 + laH / 2 });
+        lookAhead.setBounds(laArea);
+    }
+
+    // Toggles at the bottom of column 3
+    {
+        auto bottomRow = col3;
+        bottomRow.removeFromTop(col3.getHeight() - 28);
+        const int gap = 8;
+        auto leftHalf = bottomRow.removeFromLeft(bottomRow.getWidth() / 2 - gap / 2);
+        bottomRow.removeFromLeft(gap);
+        auto rightHalf = bottomRow;
+        scHpfToggle.setBounds(leftHalf.reduced(2));
+        safetyToggle.setBounds(rightHalf.reduced(2));
+    }
 
     // Right: Attenuation label + meter
     auto meterLabel = right.removeFromTop(24);
