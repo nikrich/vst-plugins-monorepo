@@ -63,6 +63,58 @@ target_link_libraries(HungryGhostLimiter
         juce::juce_core
 )
 
+# ==================== Tests (JUCE UnitTest console apps) ====================
+# LimiterDSP-focused tests (no GUI)
+juce_add_console_app(HGLTests_DSP
+    PRODUCT_NAME "HGL Tests (DSP)"
+)
+juce_generate_juce_header(HGLTests_DSP)
+
+target_sources(HGLTests_DSP PRIVATE
+    tests/LimiterDSPTests.cpp
+)
+
+target_include_directories(HGLTests_DSP PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+target_link_libraries(HGLTests_DSP PRIVATE
+    juce::juce_core
+    juce::juce_audio_basics
+    juce::juce_dsp
+)
+
+# Processor/parameter/domain tests (no GUI)
+juce_add_console_app(HGLTests_Proc
+    PRODUCT_NAME "HGL Tests (Processor)"
+)
+juce_generate_juce_header(HGLTests_Proc)
+
+target_sources(HGLTests_Proc PRIVATE
+    tests/ParameterLayoutTests.cpp
+    tests/DomainTests.cpp
+    tests/RunAllTests.cpp
+    Source/PluginProcessor.cpp
+    Source/dsp/LimiterDSP.cpp
+)
+
+target_include_directories(HGLTests_Proc PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+target_link_libraries(HGLTests_Proc PRIVATE
+    juce::juce_core
+    juce::juce_dsp
+    juce::juce_audio_basics
+    juce::juce_audio_processors
+)
+
+target_compile_definitions(HGLTests_Proc PRIVATE HGL_HEADLESS_TEST=1)
+
+# Optional: set working directory for tests if needed
+# set_target_properties(HGLTests_DSP PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
+# set_target_properties(HGLTests_Proc PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
+
 # Optional: deterministic IDs (uncomment and adjust as needed)
 # target_compile_definitions(HungryGhostLimiter PRIVATE
 #     JucePlugin_Manufacturer="Hungry Ghost"

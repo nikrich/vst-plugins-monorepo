@@ -1,5 +1,7 @@
 #include "PluginProcessor.h"
+#ifndef HGL_HEADLESS_TEST
 #include "PluginEditor.h"
+#endif
 
 //=====================================================================
 
@@ -283,7 +285,11 @@ void HungryGhostLimiterAudioProcessor::setStateInformation(const void* data, int
 
 juce::AudioProcessorEditor* HungryGhostLimiterAudioProcessor::createEditor()
 {
+#ifdef HGL_HEADLESS_TEST
+    return nullptr;
+#else
     return new HungryGhostLimiterAudioProcessorEditor(*this);
+#endif
 }
 
 //=====================================================================
