@@ -74,6 +74,10 @@ private:
     // Extracted into hgl::LimiterDSP; processor manages oversampling, state, and params.
     hgl::LimiterDSP limiter;
 
+    // ========= Advanced post (host-rate) state =========
+    juce::Random rng;
+    float nsErrPrev[2] { 0.0f, 0.0f }; // noise-shaping error (per channel)
+
     // ========= Input Trim smoothing =========
     juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> inTrimLin[2];
 
@@ -130,12 +134,16 @@ private:
 
     // ========= Helpers =========
     void buildOversampler(double sr, int samplesPerBlockExpected);
-    void updateLatencyReport(float lookMs); // calls setLatencySamples()
+    void updateLatencyReport(float lookMs, bool oversamplingActive); // calls setLatencySamples()
 
     // --- cached derived values (updated per block) ---
     int   lookAheadSamplesOS = 0;      // at OS rate
     float releaseAlphaOS = 0.0f;   // one-pole release coefficient at OS rate
     float lastReportedLookMs = std::numeric_limits<float>::quiet_NaN();
+
+    enum class Domain { TruePeak, Digital, Analog };
+    Domain currentDomain = Domain::TruePeak;
+    Domain lastDomain = Domain::TruePeak;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(HungryGhostLimiterAudioProcessor)
 };

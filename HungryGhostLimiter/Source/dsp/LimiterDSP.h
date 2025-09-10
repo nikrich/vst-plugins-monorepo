@@ -40,6 +40,14 @@ public:
 
     void setParams(const LimiterParams& p) { params = p; }
 
+    // Allow host to change sidechain HPF cutoff (Hz) at runtime
+    void setSidechainHPFCutoff(float Hz)
+    {
+        scHPFCoefs = juce::dsp::IIR::Coefficients<float>::makeHighPass(osSampleRate, juce::jmax(5.0f, Hz));
+        scHPF_L.coefficients = scHPFCoefs;
+        scHPF_R.coefficients = scHPFCoefs;
+    }
+
     // Process OS-rate interleaved arrays by channel pointers. Returns peak attenuation dB (positive, 0..)
     float processBlockOS(float* upL, float* upR, int N)
     {

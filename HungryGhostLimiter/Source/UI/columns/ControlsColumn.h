@@ -19,7 +19,8 @@ public:
                    juce::LookAndFeel* neonToggleLNF)
         : apvts(apvts),
           releaseSec(apvts),
-          lookAhead("LOOK-AHEAD")
+          lookAhead("LOOK-AHEAD"),
+          advanced(apvts)
     {
         // Look & Feel
         if (donutKnobLNF) releaseSec.setKnobLookAndFeel(donutKnobLNF);
