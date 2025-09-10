@@ -37,7 +37,7 @@ juce_add_plugin(HungryGhostLimiter
     EDITOR_WANTS_KEYBOARD_FOCUS FALSE
     COPY_PLUGIN_AFTER_BUILD TRUE
     FORMATS VST3
-    PRODUCT_NAME "Hungry Ghost Limiter"
+    PRODUCT_NAME "Hungry Ghost Spectral Limiter"
 )
 
 target_sources(HungryGhostLimiter PRIVATE ${HGL_SOURCES})

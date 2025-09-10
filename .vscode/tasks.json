@@ -1,0 +1,66 @@
+{
+  // VSCode tasks for configuring and building the plugin and host
+  "$schema": "https://raw.githubusercontent.com/microsoft/vscode/master/extensions/tasks/schema/tasks.schema.json",
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "cmake: limiter configure (Debug)",
+      "type": "shell",
+      "command": "cmake -S . -B build/debug -G \"Unix Makefiles\" -DCMAKE_BUILD_TYPE=Debug",
+      "options": {
+        "cwd": "${workspaceFolder}/HungryGhostLimiter"
+      },
+      "problemMatcher": "$gcc"
+    },
+    {
+      "label": "cmake: limiter build (Debug)",
+      "type": "shell",
+      "command": "cmake --build build/debug -j 8",
+      "options": {
+        "cwd": "${workspaceFolder}/HungryGhostLimiter"
+      },
+      "dependsOn": [
+        "cmake: limiter configure (Debug)"
+      ],
+      "problemMatcher": "$gcc"
+    },
+    {
+      "label": "cmake: limiter configure (Release)",
+      "type": "shell",
+      "command": "cmake -S . -B build/release -G \"Unix Makefiles\" -DCMAKE_BUILD_TYPE=Release",
+      "options": {
+        "cwd": "${workspaceFolder}/HungryGhostLimiter"
+      },
+      "problemMatcher": "$gcc"
+    },
+    {
+      "label": "cmake: limiter build (Release)",
+      "type": "shell",
+      "command": "cmake --build build/release -j 8",
+      "options": {
+        "cwd": "${workspaceFolder}/HungryGhostLimiter"
+      },
+      "dependsOn": [
+        "cmake: limiter configure (Release)"
+      ],
+      "problemMatcher": "$gcc"
+    },
+    // Convenience compounds
+    {
+      "label": "build: plugin + host (Debug)",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "cmake: limiter build (Debug)",
+        "cmake: limiter build AudioPluginHost (Release)"
+      ]
+    },
+    {
+      "label": "build: plugin + host (Release)",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "cmake: limiter build (Release)",
+        "cmake: limiter build AudioPluginHost (Release)"
+      ]
+    }
+  ]
+}

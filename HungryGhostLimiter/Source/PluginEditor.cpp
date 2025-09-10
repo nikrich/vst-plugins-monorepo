@@ -1,4 +1,5 @@
-﻿#include "PluginEditor.h"
+#include "PluginEditor.h"
+#include "BinaryData.h"
 
 HungryGhostLimiterAudioProcessorEditor::HungryGhostLimiterAudioProcessorEditor(HungryGhostLimiterAudioProcessor& p)
     : juce::AudioProcessorEditor(&p)

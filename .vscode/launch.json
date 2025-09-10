@@ -1,0 +1,30 @@
+{
+  // Launch AudioPluginHost under LLDB from VSCode
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "AudioPluginHost (Debug) — launch",
+      "type": "cppdbg",
+      "request": "launch",
+      "MIMode": "lldb",
+      "program": "${workspaceFolder}/build/juce/extras/AudioPluginHost/AudioPluginHost_artefacts/Release/AudioPluginHost.app/Contents/MacOS/AudioPluginHost",
+      "cwd": "${workspaceFolder}",
+      "environment": [],
+      "externalConsole": false,
+      "preLaunchTask": "build: plugin + host (Debug)",
+      "args": []
+    },
+    {
+      "name": "AudioPluginHost (Release) — launch",
+      "type": "cppdbg",
+      "request": "launch",
+      "MIMode": "lldb",
+      "program": "${workspaceFolder}/build/juce/extras/AudioPluginHost/AudioPluginHost_artefacts/Release/AudioPluginHost.app/Contents/MacOS/AudioPluginHost",
+      "cwd": "${workspaceFolder}",
+      "environment": [],
+      "externalConsole": false,
+      "preLaunchTask": "build: plugin + host (Release)",
+      "args": []
+    }
+  ]
+}
