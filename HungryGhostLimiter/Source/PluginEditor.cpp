@@ -5,7 +5,7 @@ HungryGhostLimiterAudioProcessorEditor::HungryGhostLimiterAudioProcessorEditor(H
     : juce::AudioProcessorEditor(&p)
     , proc(p)
     , threshold(proc.apvts)
-    , ceiling("OUT CEILING")
+    , ceiling(proc.apvts)
     , release("RELEASE")
     , attenMeter("ATTENUATION")
     , lookAhead("LOOK-AHEAD")
@@ -57,6 +57,9 @@ HungryGhostLimiterAudioProcessorEditor::HungryGhostLimiterAudioProcessorEditor(H
     addAndMakeVisible(scHpfToggle);
     addAndMakeVisible(safetyToggle);
 
+    // container for third column (grid layout convenience)
+    addAndMakeVisible(col3Container);
+
 	// Attenuation Meter
     attenMeter.setBarWidth(12);      // thinner
     attenMeter.setTopDown(true);     // reverse: top → bottom
@@ -69,7 +72,6 @@ HungryGhostLimiterAudioProcessorEditor::HungryGhostLimiterAudioProcessorEditor(H
     addAndMakeVisible(attenMeter);
 
     // APVTS attachments for the remaining sliders
-    clAttach = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(proc.apvts, "outCeiling", ceiling.slider);
     reAttach = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(proc.apvts, "release", release.slider);
     laAttach = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(proc.apvts, "lookAheadMs", lookAhead.slider);
     hpfAttach = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(proc.apvts, "scHpf", scHpfToggle);
@@ -118,39 +120,42 @@ void HungryGhostLimiterAudioProcessorEditor::resized()
     auto left = content.removeFromLeft(juce::roundToInt(content.getWidth() * 0.66f)).reduced(8);
     auto right = content.reduced(8);
 
-    // Left: 3 columns (Threshold, Ceiling, Release)
-    const int colGap = 10;
-    const int colW = (left.getWidth() - 2 * colGap) / 3;
-    auto col1 = left.removeFromLeft(colW); left.removeFromLeft(colGap);
-    auto col2 = left.removeFromLeft(colW); left.removeFromLeft(colGap);
-    auto col3 = left; // remaining
+    // Left: 3 columns (Threshold, Ceiling, Release) via juce::Grid
+    {
+        juce::Grid grid;
+        using Track = juce::Grid::TrackInfo;
+        grid.templateColumns = { Track(juce::Grid::Fr(1)), Track(juce::Grid::Fr(1)), Track(juce::Grid::Fr(1)) };
+        grid.templateRows = { Track(juce::Grid::Fr(1)) };
+        grid.items = {
+            juce::GridItem(threshold).withMargin(6),
+            juce::GridItem(ceiling).withMargin(6),
+            juce::GridItem(col3Container).withMargin(6)
+        };
+        grid.performLayout(left);
+    }
 
-    // Make inner padding consistent
-    col1 = col1.reduced(6); col2 = col2.reduced(6); col3 = col3.reduced(6);
-
-    threshold.setBounds(col1);
-    ceiling.setBounds(col2);
+    auto col3 = col3Container.getBounds();
 
     // Release knob: square area near top, label already inside your LabelledVSlider
-    auto knobSize = juce::jmin(col3.getWidth(), juce::roundToInt(col3.getHeight() * 0.55f));
+    auto knobSize = juce::jmin(col3.getWidth(), juce::roundToInt(col3.getHeight() * 0.48f));
     auto knobArea = juce::Rectangle<int>(0, 0, knobSize, knobSize)
         .withCentre({ col3.getCentreX(), col3.getY() + knobSize / 2 + 6 });
     release.setBounds(knobArea);
 
     // Look-ahead slider under the knob
     {
-        const int laW = juce::jmin(60, col3.getWidth());
-        const int laH = juce::jmax(80, col3.getHeight() - knobArea.getBottom() - 44);
+        const int laW = juce::jmin(120, col3.getWidth());
+        const int laH = juce::jmax(90, col3.getHeight() - knobArea.getBottom() - 60);
         auto laArea = juce::Rectangle<int>(laW, laH)
-            .withCentre({ col3.getCentreX(), knobArea.getBottom() + 10 + laH / 2 });
+            .withCentre({ col3.getCentreX(), knobArea.getBottom() + 12 + laH / 2 });
         lookAhead.setBounds(laArea);
     }
 
-    // Toggles at the bottom of column 3
+    // Toggles at the bottom of column 3 (make space for label-under style)
     {
         auto bottomRow = col3;
-        bottomRow.removeFromTop(col3.getHeight() - 28);
-        const int gap = 8;
+        bottomRow.removeFromTop(col3.getHeight() - 48);
+        const int gap = 12;
         auto leftHalf = bottomRow.removeFromLeft(bottomRow.getWidth() / 2 - gap / 2);
         bottomRow.removeFromLeft(gap);
         auto rightHalf = bottomRow;
@@ -161,6 +166,7 @@ void HungryGhostLimiterAudioProcessorEditor::resized()
     // Right: Attenuation label + meter
     auto meterLabel = right.removeFromTop(24);
     attenLabel.setBounds(meterLabel);
+    attenLabel.setFont(juce::Font(juce::FontOptions(14.0f, juce::Font::bold)));
     attenMeter.setBounds(right.reduced(18, 6));
 }
 

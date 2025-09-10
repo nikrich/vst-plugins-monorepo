@@ -103,13 +103,17 @@ void HungryGhostLimiterAudioProcessor::processBlock(juce::AudioBuffer<float>& bu
     const bool  thLink = apvts.getRawParameterValue("thresholdLink")->load() > 0.5f;
     if (thLink) { /* mirror left into right for pre-gain */ thR = thL; }
 
-    const float ceilingDb = apvts.getRawParameterValue("outCeiling")->load();
+    float ceilLDb = apvts.getRawParameterValue("outCeilingL")->load();
+    float ceilRDb = apvts.getRawParameterValue("outCeilingR")->load();
+    const bool  ceilLink = apvts.getRawParameterValue("outCeilingLink")->load() > 0.5f;
+    if (ceilLink) ceilRDb = ceilLDb;
+
     const float releaseMs = apvts.getRawParameterValue("release")->load();
     const float lookMs = apvts.getRawParameterValue("lookAheadMs")->load();
     const bool  scHPFOn = apvts.getRawParameterValue("scHpf")->load() > 0.5f;
     const bool  safetyOn = apvts.getRawParameterValue("safetyClip")->load() > 0.5f;
 
-    const float ceilLin = dbToLin(ceilingDb);
+    const float ceilLin = dbToLin(juce::jmin(ceilLDb, ceilRDb));
     const float preGainL = dbToLin(-thL);
     const float preGainR = dbToLin(-thR);
 
@@ -197,10 +201,17 @@ HungryGhostLimiterAudioProcessor::createParameterLayout()
     params.push_back(std::make_unique<AudioParameterBool>(
         ParameterID{ "thresholdLink", 1 }, "Link Threshold", true));
 
-    // --- True-peak ceiling (recommend -1.0 dBTP by default) ---
+    // --- True-peak ceiling (stereo, linkable), recommend -1.0 dBTP by default ---
     params.push_back(std::make_unique<AudioParameterFloat>(
-        ParameterID{ "outCeiling", 1 }, "Out Ceiling",
+        ParameterID{ "outCeilingL", 1 }, "Out Ceiling L",
         NormalisableRange<float>(-24.0f, 0.0f, 0.01f, 0.8f), -1.0f));
+
+    params.push_back(std::make_unique<AudioParameterFloat>(
+        ParameterID{ "outCeilingR", 1 }, "Out Ceiling R",
+        NormalisableRange<float>(-24.0f, 0.0f, 0.01f, 0.8f), -1.0f));
+
+    params.push_back(std::make_unique<AudioParameterBool>(
+        ParameterID{ "outCeilingLink", 1 }, "Link Ceiling", true));
 
     // --- Release time (ms) ---
     params.push_back(std::make_unique<AudioParameterFloat>(

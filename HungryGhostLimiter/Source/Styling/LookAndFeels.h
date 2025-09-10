@@ -11,7 +11,7 @@ struct VibeLNF : juce::LookAndFeel_V4
 // Pill-shaped vertical slider skin (for Slider::LinearBarVertical)
 struct PillVSliderLNF : juce::LookAndFeel_V4
 {
-    float outlineAlpha{ 0.20f };
+    float outlineAlpha{ 0.20f }; // remove white outline around sliders
 
     void drawLinearSlider(juce::Graphics& g, int x, int y, int w, int h,
         float sliderPos, float minPos, float maxPos,
@@ -28,47 +28,38 @@ struct NeonToggleLNF : juce::LookAndFeel_V4
         bool shouldHighlight, bool shouldDown) override
     {
         auto r = b.getLocalBounds().toFloat();
-        auto bg = r.reduced(1.0f);
-        const float h = bg.getHeight();
-        const float w = juce::jlimit(28.0f, 120.0f, bg.getWidth());
-        const float rad = h * 0.5f;
+
+        // Layout: pill switch at top, label below
+        const float pillH = juce::jlimit(20.0f, 28.0f, r.getHeight());
+        auto pill = r.removeFromTop(pillH);
+        pill = pill.reduced(2.0f);
+        const float rad = pill.getHeight() * 0.5f;
 
         // pill body
         g.setColour(Style::theme().panel);
-        g.fillRoundedRectangle(bg, rad);
+        g.fillRoundedRectangle(pill, rad);
 
         // on fill (glow gradient)
         if (b.getToggleState())
         {
-            juce::ColourGradient grad(Style::theme().accent2, bg.getX(), bg.getCentreY(),
-                Style::theme().accent1, bg.getRight(), bg.getCentreY(), false);
+            juce::ColourGradient grad(Style::theme().accent2, pill.getX(), pill.getCentreY(),
+                Style::theme().accent1, pill.getRight(), pill.getCentreY(), false);
             grad.addColour(0.5, Style::theme().accent2);
             g.setGradientFill(grad);
-            auto onRect = bg.removeFromLeft(w * 0.58f);
+            auto onRect = pill.removeFromLeft(pill.getWidth() * 0.58f);
             g.fillRoundedRectangle(onRect, rad);
-
-            // subtle outer glow
-            juce::DropShadow ds(juce::Colours::orange.withAlpha(0.3f), 12, {});
-            juce::Path path;
-            path.addRoundedRectangle(onRect, rad);
-            ds.drawForPath(g, path);
         }
 
         // circular knob
-        auto knob = r.withTrimmedLeft(4).withTrimmedRight(4);
-        knob.setWidth(knob.getHeight());
-        if (b.getToggleState())
-            knob.setX(bg.getRight() - knob.getWidth() - 4.0f);
-        else
-            knob.setX(bg.getX() + 4.0f);
-
+        auto knob = juce::Rectangle<float>(pill.getHeight(), pill.getHeight()).withCentre({ b.getToggleState() ? pill.getRight() - rad : pill.getX() + rad, pill.getCentreY() });
         g.setColour(juce::Colours::white.withAlpha(0.95f));
-        g.fillEllipse(knob.toFloat());
+        g.fillEllipse(knob);
 
         // label
-        g.setColour(juce::Colours::white.withAlpha(0.85f));
+        auto labelArea = r.reduced(2.0f);
+        g.setColour(Style::theme().text);
         g.setFont(juce::Font(juce::FontOptions(12.0f, juce::Font::plain)));
-        g.drawFittedText(b.getButtonText(), r.withTrimmedLeft((int)(r.getHeight() * 1.2f)).toNearestInt(), juce::Justification::centredLeft, 1);
+        g.drawFittedText(b.getButtonText(), labelArea.toNearestInt(), juce::Justification::centred, 1);
 
         if (shouldHighlight || shouldDown)
             g.fillAll(juce::Colours::white.withAlpha(0.03f));

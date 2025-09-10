@@ -4,13 +4,14 @@ StereoThreshold::StereoThreshold(HungryGhostLimiterAudioProcessor::APVTS& apvts)
 {
     title.setJustificationType(juce::Justification::centred);
     title.setInterceptsMouseClicks(false, false);
-    title.setColour(juce::Label::textColourId, juce::Colours::white.withAlpha(0.9f));
+    title.setColour(juce::Label::textColourId, juce::Colours::white.withAlpha(0.95f));
+    title.setFont(juce::Font(juce::FontOptions(14.0f, juce::Font::bold)));
     addAndMakeVisible(title);
 
     auto initSlider = [](juce::Slider& s)
         {
             s.setSliderStyle(juce::Slider::LinearBarVertical);
-            s.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 60, 18);
+            s.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0); // draw value via LNF at bottom
             s.setColour(juce::Slider::trackColourId, juce::Colours::transparentBlack);
             s.setColour(juce::Slider::thumbColourId, juce::Colour::fromRGB(210, 210, 210));
         };
@@ -24,6 +25,8 @@ StereoThreshold::StereoThreshold(HungryGhostLimiterAudioProcessor::APVTS& apvts)
     labelR.setJustificationType(juce::Justification::centred);
     labelL.setInterceptsMouseClicks(false, false);
     labelR.setInterceptsMouseClicks(false, false);
+    labelL.setFont(juce::Font(juce::FontOptions(12.0f, juce::Font::plain)));
+    labelR.setFont(juce::Font(juce::FontOptions(12.0f, juce::Font::plain)));
     addAndMakeVisible(labelL);
     addAndMakeVisible(labelR);
 

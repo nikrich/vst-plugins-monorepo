@@ -6,6 +6,7 @@
 #include "ui/Controls.h"
 #include "ui/Meter.h"
 #include "ui/Threshold.h"
+#include "ui/Ceiling.h"
 #include "BinaryData.h"
 #include "styling/Theme.h"
 class HungryGhostLimiterAudioProcessorEditor
@@ -32,7 +33,8 @@ private:
     juce::Label          logoSub;    // optional "LIMITER" text under the logo
 
     StereoThreshold threshold;
-    LabelledVSlider ceiling, release;
+    StereoCeiling   ceiling;
+    LabelledVSlider release;
 
     AttenMeter  attenMeter;
     juce::Label attenLabel;
@@ -43,13 +45,15 @@ private:
     juce::ToggleButton scHpfToggle{ "SC HPF" };
     juce::ToggleButton safetyToggle{ "SAFETY" };
 
+    // layout helper container for third column (release/lookahead/toggles)
+    juce::Component col3Container;
+
     NeonToggleLNF neonToggleLNF;
 
     // attachments
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> laAttach;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> hpfAttach;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> safAttach;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> clAttach;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> reAttach;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(HungryGhostLimiterAudioProcessorEditor)

@@ -20,6 +20,7 @@ VibeLNF::VibeLNF()
 
     auto& th = Style::theme();
     setColour(juce::Slider::textBoxTextColourId, th.text);
+    setColour(juce::Slider::textBoxOutlineColourId, juce::Colours::transparentBlack);
     setColour(juce::Label::textColourId, th.text);
 }
 
@@ -56,11 +57,16 @@ void PillVSliderLNF::drawLinearSlider(juce::Graphics& g, int x, int y, int w, in
     g.setGradientFill(fillGrad);
     g.fillRoundedRectangle(fill, radius);
 
-    // outline + subtle top gloss
-    g.setColour(juce::Colours::white.withAlpha(outlineAlpha));
-    g.drawRoundedRectangle(bounds, radius, 1.0f);
+    // no outline or gloss (clean look)
+    if (outlineAlpha > 0.0f)
+    {
+        g.setColour(juce::Colours::white.withAlpha(outlineAlpha));
+        g.drawRoundedRectangle(bounds, radius, 1.0f);
+    }
 
-    auto gloss = bounds.withHeight(bounds.getHeight() * 0.20f);
-    g.setColour(juce::Colours::white.withAlpha(0.06f));
-    g.fillRoundedRectangle(gloss, radius);
+    // value text at bottom of the slider
+    auto textArea = juce::Rectangle<int>(x, y, w, h).reduced(4).removeFromBottom(22);
+    g.setColour(Style::theme().text);
+    g.setFont(juce::Font(juce::FontOptions(12.0f)));
+    g.drawFittedText(s.getTextFromValue(s.getValue()), textArea, juce::Justification::centred, 1);
 }
