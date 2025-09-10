@@ -1,4 +1,5 @@
 #include "Threshold.h"
+#include "Layout.h"
 
 StereoThreshold::StereoThreshold(HungryGhostLimiterAudioProcessor::APVTS& apvts)
 {
@@ -15,6 +16,7 @@ StereoThreshold::StereoThreshold(HungryGhostLimiterAudioProcessor::APVTS& apvts)
             s.setColour(juce::Slider::trackColourId, juce::Colours::transparentBlack);
             s.setColour(juce::Slider::thumbColourId, juce::Colour::fromRGB(210, 210, 210));
         };
+        
     initSlider(sliderL);
     initSlider(sliderR);
 
@@ -27,6 +29,7 @@ StereoThreshold::StereoThreshold(HungryGhostLimiterAudioProcessor::APVTS& apvts)
     labelR.setInterceptsMouseClicks(false, false);
     labelL.setFont(juce::Font(juce::FontOptions(12.0f, juce::Font::plain)));
     labelR.setFont(juce::Font(juce::FontOptions(12.0f, juce::Font::plain)));
+
     addAndMakeVisible(labelL);
     addAndMakeVisible(labelR);
 
@@ -45,29 +48,55 @@ StereoThreshold::StereoThreshold(HungryGhostLimiterAudioProcessor::APVTS& apvts)
             dst->setValue(src->getValue(), juce::sendNotificationSync);
             syncing = false;
         };
+        
     sliderL.onValueChange = [=] { mirror(&sliderL, &sliderR); };
     sliderR.onValueChange = [=] { mirror(&sliderR, &sliderL); };
+
+    // When enabling link, immediately sync R to L so UI reflects linkage right away
+    linkButton.onClick = [this]
+    {
+        if (linkButton.getToggleState())
+        {
+            syncing = true;
+            sliderR.setValue(sliderL.getValue(), juce::sendNotificationSync);
+            syncing = false;
+        }
+    };
 }
 
 void StereoThreshold::resized()
 {
-    auto a = getLocalBounds();
-    title.setBounds(a.removeFromTop(20));
+    // Grid with 2 columns (L/R) and 4 rows: Title, Labels, Sliders, Link
+    juce::Grid g;
+    using Track = juce::Grid::TrackInfo;
 
-    auto area = a.reduced(6);
-    int gap = 8;
-    auto left = area.removeFromLeft(area.getWidth() / 2 - gap / 2);
-    area.removeFromLeft(gap);
-    auto right = area;
+    g.templateColumns = { Track(juce::Grid::Fr(1)), Track(juce::Grid::Fr(1)) };
+    g.templateRows = {
+        Track(juce::Grid::Px(Layout::kTitleRowHeightPx)),
+        Track(juce::Grid::Px(Layout::kChannelLabelRowHeightPx)),
+        Track(juce::Grid::Px(Layout::kLargeSliderRowHeightPx)),
+        Track(juce::Grid::Px(Layout::kLinkRowHeightPx))
+    };
+    g.rowGap = juce::Grid::Px(Layout::kRowGapPx);
+    g.columnGap = juce::Grid::Px(Layout::kColGapPx);
 
-    labelL.setBounds(left.removeFromTop(16));
-    sliderL.setBounds(left);
+    auto titleItem = juce::GridItem(title).withMargin(Layout::kCellMarginPx);
+    titleItem.column = { 1, 2 }; // span both columns
 
-    labelR.setBounds(right.removeFromTop(16));
-    sliderR.setBounds(right);
+    auto linkItem = juce::GridItem(linkButton).withMargin(Layout::kCellMarginPx);
+    linkItem.column = { 1, 2 }; // span both; align to the right
+    linkItem.justifySelf = juce::GridItem::JustifySelf::end;
 
-    auto bottom = getLocalBounds().removeFromBottom(20);
-    linkButton.setBounds(bottom.removeFromRight(70));
+    g.items = {
+        titleItem,
+        juce::GridItem(labelL).withMargin(Layout::kCellMarginPx),
+        juce::GridItem(labelR).withMargin(Layout::kCellMarginPx),
+        juce::GridItem(sliderL).withMargin(Layout::kCellMarginPx),
+        juce::GridItem(sliderR).withMargin(Layout::kCellMarginPx),
+        linkItem
+    };
+
+    g.performLayout(getLocalBounds());
 }
 
 void StereoThreshold::paintOverChildren(juce::Graphics&) {}

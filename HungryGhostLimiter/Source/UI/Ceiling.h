@@ -1,6 +1,7 @@
 #pragma once
 #include <juce_gui_extra/juce_gui_extra.h>
 #include "../PluginProcessor.h"
+#include "Layout.h"
 
 class StereoCeiling : public juce::Component
 {
@@ -58,23 +59,37 @@ public:
 
     void resized() override
     {
-        auto a = getLocalBounds();
-        title.setBounds(a.removeFromTop(20));
+        // Grid with 2 columns (L/R) and 4 rows: Title, Labels, Sliders, Link
+        juce::Grid g;
+        using Track = juce::Grid::TrackInfo;
 
-        auto area = a.reduced(6);
-        int gap = 8;
-        auto left = area.removeFromLeft(area.getWidth() / 2 - gap / 2);
-        area.removeFromLeft(gap);
-        auto right = area;
+        g.templateColumns = { Track(juce::Grid::Fr(1)), Track(juce::Grid::Fr(1)) };
+        g.templateRows = {
+            Track(juce::Grid::Px(Layout::kTitleRowHeightPx)),
+            Track(juce::Grid::Px(Layout::kChannelLabelRowHeightPx)),
+            Track(juce::Grid::Px(Layout::kLargeSliderRowHeightPx)),
+            Track(juce::Grid::Px(Layout::kLinkRowHeightPx))
+        };
+        g.rowGap = juce::Grid::Px(Layout::kRowGapPx);
+        g.columnGap = juce::Grid::Px(Layout::kColGapPx);
 
-        labelL.setBounds(left.removeFromTop(16));
-        sliderL.setBounds(left);
+        auto titleItem = juce::GridItem(title).withMargin(Layout::kCellMarginPx);
+        titleItem.column = { 1, 2 }; // span both columns
 
-        labelR.setBounds(right.removeFromTop(16));
-        sliderR.setBounds(right);
+        auto linkItem = juce::GridItem(linkButton).withMargin(Layout::kCellMarginPx);
+        linkItem.column = { 1, 2 }; // span both; align to the right
+        linkItem.justifySelf = juce::GridItem::JustifySelf::end;
 
-        auto bottom = getLocalBounds().removeFromBottom(20);
-        linkButton.setBounds(bottom.removeFromRight(70));
+        g.items = {
+            titleItem,
+            juce::GridItem(labelL).withMargin(Layout::kCellMarginPx),
+            juce::GridItem(labelR).withMargin(Layout::kCellMarginPx),
+            juce::GridItem(sliderL).withMargin(Layout::kCellMarginPx),
+            juce::GridItem(sliderR).withMargin(Layout::kCellMarginPx),
+            linkItem
+        };
+
+        g.performLayout(getLocalBounds());
     }
 
     void setSliderLookAndFeel(juce::LookAndFeel* lnf)

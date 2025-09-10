@@ -4,9 +4,11 @@
 #include "PluginProcessor.h"
 #include "styling/LookAndFeels.h"
 #include "ui/Controls.h"
-#include "ui/Meter.h"
 #include "ui/Threshold.h"
 #include "ui/Ceiling.h"
+#include "ui/Layout.h"
+#include "ui/columns/ControlsColumn.h"
+#include "ui/columns/MeterColumn.h"
 #include "BinaryData.h"
 #include "styling/Theme.h"
 class HungryGhostLimiterAudioProcessorEditor
@@ -27,34 +29,17 @@ private:
     VibeLNF        lnf;
     PillVSliderLNF pillLNF;
     DonutKnobLNF   donutLNF;
+    NeonToggleLNF  neonToggleLNF;
 
     juce::Label title;
     juce::ImageComponent logoComp;   // centered logo at the top
     juce::Label          logoSub;    // optional "LIMITER" text under the logo
 
+    // Columns
     StereoThreshold threshold;
     StereoCeiling   ceiling;
-    LabelledVSlider release;
-
-    AttenMeter  attenMeter;
-    juce::Label attenLabel;
-
-    // after 'LabelledVSlider ceiling, release;'
-    LabelledVSlider lookAhead;          // "LOOK-AHEAD"
-
-    juce::ToggleButton scHpfToggle{ "SC HPF" };
-    juce::ToggleButton safetyToggle{ "SAFETY" };
-
-    // layout helper container for third column (release/lookahead/toggles)
-    juce::Component col3Container;
-
-    NeonToggleLNF neonToggleLNF;
-
-    // attachments
-    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> laAttach;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> hpfAttach;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> safAttach;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> reAttach;
+    ControlsColumn  controlsCol;
+    MeterColumn     meterCol;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(HungryGhostLimiterAudioProcessorEditor)
 };
