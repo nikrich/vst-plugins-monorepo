@@ -5,15 +5,15 @@
   <MAINGROUP id="pzXCLk" name="HungryGhostLimiter">
     <GROUP id="{664B6E4B-27FA-58CC-5AD0-C349623B60C5}" name="Source">
       <FILE id="RFamst" name="logo.png" compile="0" resource="1" file="../assets/logo.png"/>
-      <FILE id="lYkIXc" name="Threshold.cpp" compile="1" resource="0" file="Source/ui/Threshold.cpp"/>
-      <FILE id="QX9OUk" name="Threshold.h" compile="0" resource="0" file="Source/ui/Threshold.h"/>
-      <FILE id="NBnaaW" name="Meter.cpp" compile="1" resource="0" file="Source/ui/Meter.cpp"/>
-      <FILE id="rXaRMX" name="Meter.h" compile="0" resource="0" file="Source/ui/Meter.h"/>
-      <FILE id="VtINXc" name="Controls.cpp" compile="1" resource="0" file="Source/ui/Controls.cpp"/>
-      <FILE id="MKC8OS" name="Controls.h" compile="0" resource="0" file="Source/ui/Controls.h"/>
+      <FILE id="lYkIXc" name="Threshold.cpp" compile="1" resource="0" file="Source/UI/Threshold.cpp"/>
+      <FILE id="QX9OUk" name="Threshold.h" compile="0" resource="0" file="Source/UI/Threshold.h"/>
+      <FILE id="NBnaaW" name="Meter.cpp" compile="1" resource="0" file="Source/UI/Meter.cpp"/>
+      <FILE id="rXaRMX" name="Meter.h" compile="0" resource="0" file="Source/UI/Meter.h"/>
+      <FILE id="VtINXc" name="Controls.cpp" compile="1" resource="0" file="Source/UI/Controls.cpp"/>
+      <FILE id="MKC8OS" name="Controls.h" compile="0" resource="0" file="Source/UI/Controls.h"/>
       <FILE id="jGXWCL" name="LookAndFeels.cpp" compile="1" resource="0"
-            file="Source/styling/LookAndFeels.cpp"/>
-      <FILE id="XE22YN" name="LookAndFeels.h" compile="0" resource="0" file="Source/styling/LookAndFeels.h"/>
+            file="Source/Styling/LookAndFeels.cpp"/>
+      <FILE id="XE22YN" name="LookAndFeels.h" compile="0" resource="0" file="Source/Styling/LookAndFeels.h"/>
       <FILE id="fHnlKx" name="PluginProcessor.cpp" compile="1" resource="0"
             file="Source/PluginProcessor.cpp"/>
       <FILE id="gTl7Ps" name="PluginProcessor.h" compile="0" resource="0"
@@ -21,6 +21,18 @@
       <FILE id="JzqnLB" name="PluginEditor.cpp" compile="1" resource="0"
             file="Source/PluginEditor.cpp"/>
       <FILE id="StPo2z" name="PluginEditor.h" compile="0" resource="0" file="Source/PluginEditor.h"/>
+      <FILE id="NEW1" name="Ceiling.h" compile="0" resource="0" file="Source/UI/Ceiling.h"/>
+      <FILE id="NEW2" name="Layout.h" compile="0" resource="0" file="Source/UI/Layout.h"/>
+      <FILE id="NEW3" name="MeterColumn.h" compile="0" resource="0" file="Source/UI/columns/MeterColumn.h"/>
+      <FILE id="NEW4" name="ControlsColumn.h" compile="0" resource="0" file="Source/UI/columns/ControlsColumn.h"/>
+      <FILE id="NEW5" name="InputsColumn.h" compile="0" resource="0" file="Source/UI/columns/InputsColumn.h"/>
+      <FILE id="NEW6" name="InputTrimSection.h" compile="0" resource="0" file="Source/UI/InputTrimSection.h"/>
+      <FILE id="NEW7" name="ReleaseSection.h" compile="0" resource="0" file="Source/UI/ReleaseSection.h"/>
+      <FILE id="NEW8" name="AdvancedPanel.h" compile="0" resource="0" file="Source/UI/AdvancedPanel.h"/>
+      <FILE id="NEW9" name="Theme.cpp" compile="1" resource="0" file="Source/Styling/Theme.cpp"/>
+      <FILE id="NEW10" name="Theme.h" compile="0" resource="0" file="Source/Styling/Theme.h"/>
+      <FILE id="NEW11" name="LimiterDSP.h" compile="0" resource="0" file="Source/dsp/LimiterDSP.h"/>
+      <FILE id="NEW12" name="LimiterDSP.cpp" compile="1" resource="0" file="Source/dsp/LimiterDSP.cpp"/>
     </GROUP>
   </MAINGROUP>
   <MODULES>

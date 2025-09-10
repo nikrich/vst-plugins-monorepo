@@ -82,7 +82,7 @@ void AttenMeter::paint(juce::Graphics& g)
     if (showTicks)
     {
         g.setFont(12.0f);
-        g.setColour(juce::Colours::white.withAlpha(0.65f));
+        g.setColour(Style::theme().textMuted);
 
         const int gap = 6;
         const int tickLen = 10;

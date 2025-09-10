@@ -38,6 +38,7 @@ juce_add_plugin(HungryGhostLimiter
     COPY_PLUGIN_AFTER_BUILD TRUE
     FORMATS VST3
     PRODUCT_NAME "Hungry Ghost Spectral Limiter"
+    MODULES juce_dsp
 )
 
 target_sources(HungryGhostLimiter PRIVATE ${HGL_SOURCES})

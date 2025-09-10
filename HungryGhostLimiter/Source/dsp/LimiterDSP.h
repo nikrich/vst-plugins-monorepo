@@ -14,6 +14,7 @@ struct LimiterParams
     int   lookAheadSamplesOS = 1;  // samples, OS rate
     bool  scHpfOn = true;       // sidechain HPF enable
     bool  safetyOn = false;     // safety clip enable
+    bool  autoReleaseOn = false; // program-dependent release when true
 };
 
 class LimiterDSP
@@ -28,6 +29,8 @@ public:
         slidingMax.reset(maxLookAheadSamplesOS + 64);
         updateSidechainFilter();
         currentGainDb = 0.0f;
+        grEnvFastDb = 0.0f;
+        grEnvSlowDb = 0.0f;
     }
 
     void reset()
@@ -62,13 +65,46 @@ public:
             if (aMax > params.ceilLin)
                 gReq = params.ceilLin / (aMax + 1.0e-12f);
 
-            const float gReqDb = linToDb(gReq); // <= 0 dB
+            const float gReqDb = linToDb(gReq); // <= 0 dB (negative)
 
-            // 4) Attack (instant due to look-ahead) + program release
-            if (gReqDb < currentGainDb)               // need more attenuation (more negative dB)
-                currentGainDb = gReqDb;               // jump instantly
-            else                                      // release toward target (usually 0 dB)
-                currentGainDb = currentGainDb * params.releaseAlphaOS + gReqDb * (1.0f - params.releaseAlphaOS);
+            // 4) Attack + Release
+            if (!params.autoReleaseOn)
+            {
+                // legacy/manual: instant attack, one-pole release in dB-domain
+                if (gReqDb < currentGainDb)               // need more attenuation (more negative dB)
+                    currentGainDb = gReqDb;               // jump instantly
+                else                                      // release toward target (usually 0 dB)
+                    currentGainDb = currentGainDb * params.releaseAlphaOS + gReqDb * (1.0f - params.releaseAlphaOS);
+            }
+            else
+            {
+                // program-dependent auto release using two envelopes in positive-dB domain
+                const float targetAttenDb = -gReqDb;                // positive dB of desired reduction
+                float currentAttenDb = -currentGainDb;              // positive dB currently applied
+
+                if (targetAttenDb > currentAttenDb + 1.0e-6f)
+                {
+                    // instant attack: jump to target and reset envelopes
+                    currentGainDb = gReqDb;
+                    grEnvFastDb = targetAttenDb;
+                    grEnvSlowDb = targetAttenDb;
+                }
+                else
+                {
+                    // releasing: converge toward target using fast/slow blend
+                    const float kSlow = juce::jlimit(0.0f, 1.0f, params.releaseAlphaOS);
+                    const float kFast = std::exp(-1.0f / juce::jmax(1.0f, osSampleRate * 0.02f)); // ~20 ms
+
+                    grEnvFastDb = juce::jmax(targetAttenDb, kFast * grEnvFastDb + (1.0f - kFast) * targetAttenDb);
+                    grEnvSlowDb = juce::jmax(targetAttenDb, kSlow * grEnvSlowDb + (1.0f - kSlow) * targetAttenDb);
+
+                    float alpha = juce::jlimit(0.0f, 1.0f, grEnvSlowDb / 12.0f);
+                    alpha = alpha * alpha * (3.0f - 2.0f * alpha); // smoothstep
+
+                    const float grSmoothDb = alpha * grEnvFastDb + (1.0f - alpha) * grEnvSlowDb;
+                    currentGainDb = -grSmoothDb; // back to negative dB domain
+                }
+            }
 
             const float gLin = dbToLin(currentGainDb);
 
@@ -173,6 +209,8 @@ private:
     float osSampleRate = 44100.0f;
     LimiterParams params{};
     float currentGainDb = 0.0f;
+    float grEnvFastDb = 0.0f; // auto-release fast envelope (positive dB)
+    float grEnvSlowDb = 0.0f; // auto-release slow envelope (positive dB)
     LookaheadDelay delayL, delayR;
     SlidingMax slidingMax;
     juce::dsp::IIR::Filter<float> scHPF_L, scHPF_R;

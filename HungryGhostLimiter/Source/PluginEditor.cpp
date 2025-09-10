@@ -4,7 +4,7 @@
 HungryGhostLimiterAudioProcessorEditor::HungryGhostLimiterAudioProcessorEditor(HungryGhostLimiterAudioProcessor& p)
     : juce::AudioProcessorEditor(&p)
     , proc(p)
-    , threshold(proc.apvts)
+    , inputsCol(proc.apvts)
     , ceiling(proc.apvts)
     , controlsCol(proc.apvts, &donutLNF, &pillLNF, &neonToggleLNF)
     , meterCol()
@@ -12,7 +12,7 @@ HungryGhostLimiterAudioProcessorEditor::HungryGhostLimiterAudioProcessorEditor(H
     setLookAndFeel(&lnf);
     setResizable(false, false);
     setOpaque(true);
-    setSize(760, 460); // was 503x400 → give the UI room
+    setSize(760, 640); // increased height to ensure Threshold is visible
 
     int logoSize = 0;
     if (const auto* logoData = BinaryData::getNamedResource("logo_png", logoSize))
@@ -34,11 +34,11 @@ HungryGhostLimiterAudioProcessorEditor::HungryGhostLimiterAudioProcessorEditor(H
     // hide the old title if you had one
     title.setVisible(false);
 
-    // Skin Threshold L/R with the pill L&F
-    threshold.setSliderLookAndFeel(&pillLNF);
+    // Skin Input & Threshold L/R with the pill L&F
+    inputsCol.setSliderLookAndFeel(&pillLNF);
     ceiling.setSliderLookAndFeel(&pillLNF);
 
-    addAndMakeVisible(threshold);
+    addAndMakeVisible(inputsCol);
     addAndMakeVisible(ceiling);
     addAndMakeVisible(controlsCol);
     addAndMakeVisible(meterCol);
@@ -105,7 +105,7 @@ void HungryGhostLimiterAudioProcessorEditor::resized()
     grid.templateRows = { Track(juce::Grid::Fr(1)) };
     grid.columnGap = juce::Grid::Px(Layout::kColGapPx);
     grid.items = {
-        juce::GridItem(threshold).withMargin(Layout::kCellMarginPx),
+        juce::GridItem(inputsCol).withMargin(Layout::kCellMarginPx),
         juce::GridItem(ceiling).withMargin(Layout::kCellMarginPx),
         juce::GridItem(controlsCol).withMargin(Layout::kCellMarginPx),
         juce::GridItem(meterCol).withMargin(Layout::kCellMarginPx)

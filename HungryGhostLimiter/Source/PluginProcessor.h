@@ -5,7 +5,6 @@
 */
 
 #pragma once
-
 #include <JuceHeader.h>
 #include <array>
 #include <vector>
@@ -13,6 +12,7 @@
 #include <atomic>
 #include <limits>
 #include "dsp/LimiterDSP.h"
+#include <juce_dsp/juce_dsp.h>
 
 //==============================================================================
 
@@ -54,8 +54,8 @@ public:
     APVTS apvts{ *this, nullptr, "params", createParameterLayout() };
     static APVTS::ParameterLayout createParameterLayout();
 
-// exposed to editor (gain-reduction, dB, >= 0). UI applies smoothing.
-float getSmoothedAttenDb() const { return attenDbRaw.load(); }
+    // exposed to editor (gain-reduction, dB, >= 0). UI applies smoothing.
+    float getSmoothedAttenDb() const { return attenDbRaw.load(); }
 
 private:
     // ========= Parameters we read every block =========
@@ -63,8 +63,8 @@ private:
     int   osFactor = 1;        // 1, 4, or 8 (set in prepare based on sample rate)
     float osSampleRate = 44100.0f; // sampleRateHz * osFactor
 
-// --- metering (host-rate): raw dB reduction (smoothed in UI component) ---
-std::atomic<float> attenDbRaw { 0.0f }; // 0..24 dB
+    // --- metering (host-rate): raw dB reduction (smoothed in UI component) ---
+    std::atomic<float> attenDbRaw { 0.0f }; // 0..24 dB
 
     // ========= Oversampling =========
     std::unique_ptr<juce::dsp::Oversampling<float>> oversampler; // built in prepare
@@ -74,12 +74,15 @@ std::atomic<float> attenDbRaw { 0.0f }; // 0..24 dB
     // Extracted into hgl::LimiterDSP; processor manages oversampling, state, and params.
     hgl::LimiterDSP limiter;
 
+    // ========= Input Trim smoothing =========
+    juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> inTrimLin[2];
+
     // ========= Sliding-window maximum (monotonic queue, allocation-free in audio) =========
     struct SlidingMax
     {
         void reset(int capacitySamples)
         {
-            // capacity is the maximum look-ahead window we�ll ever use
+            // capacity is the maximum look-ahead window we’ll ever use
             vals.assign((size_t)juce::jmax(capacitySamples + 8, 32), 0.0f);
             idxs.assign(vals.size(), 0);
             head = tail = 0;
@@ -127,12 +130,13 @@ std::atomic<float> attenDbRaw { 0.0f }; // 0..24 dB
 
     // ========= Helpers =========
     void buildOversampler(double sr, int samplesPerBlockExpected);
-void updateLatencyReport(float lookMs); // calls setLatencySamples()
+    void updateLatencyReport(float lookMs); // calls setLatencySamples()
 
     // --- cached derived values (updated per block) ---
-int   lookAheadSamplesOS = 0;      // at OS rate
+    int   lookAheadSamplesOS = 0;      // at OS rate
     float releaseAlphaOS = 0.0f;   // one-pole release coefficient at OS rate
     float lastReportedLookMs = std::numeric_limits<float>::quiet_NaN();
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(HungryGhostLimiterAudioProcessor)
 };
+

@@ -1,11 +1,13 @@
 #pragma once
 #include <juce_gui_extra/juce_gui_extra.h>
 #include "../Controls.h"
+#include "../ReleaseSection.h"
+#include "../AdvancedPanel.h"
 #include "../Layout.h"
 #include "../../PluginProcessor.h"
 
 // A column that vertically arranges:
-//  1) Release (rotary)
+//  1) Release (rotary + Auto toggle)
 //  2) LookAhead (vertical bar)
 //  3) Two toggles (SC HPF, SAFETY)
 class ControlsColumn : public juce::Component {
@@ -15,19 +17,20 @@ public:
                    juce::LookAndFeel* pillVSliderLNF,
                    juce::LookAndFeel* neonToggleLNF)
         : apvts(apvts),
-          release("RELEASE"),
+          releaseSec(apvts),
           lookAhead("LOOK-AHEAD")
     {
         // Look & Feel
-        if (donutKnobLNF) release.setSliderLookAndFeel(donutKnobLNF);
+        if (donutKnobLNF) releaseSec.setKnobLookAndFeel(donutKnobLNF);
         if (pillVSliderLNF) lookAhead.setSliderLookAndFeel(pillVSliderLNF);
         if (neonToggleLNF) {
             scHpfToggle.setLookAndFeel(neonToggleLNF);
             safetyToggle.setLookAndFeel(neonToggleLNF);
         }
 
-        addAndMakeVisible(release);
+        addAndMakeVisible(releaseSec);
         addAndMakeVisible(lookAhead);
+        addAndMakeVisible(advanced);
 
         scHpfToggle.setButtonText("SC HPF");
         safetyToggle.setButtonText("SAFETY");
@@ -36,7 +39,6 @@ public:
         toggleRow.addAndMakeVisible(safetyToggle);
 
         // Attachments
-        reAttach = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(apvts, "release", release.slider);
         laAttach = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(apvts, "lookAheadMs", lookAhead.slider);
         hpfAttach = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(apvts, "scHpf", scHpfToggle);
         safAttach = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(apvts, "safetyClip", safetyToggle);
@@ -54,14 +56,16 @@ public:
         g.templateRows = {
             Track(juce::Grid::Px(Layout::kReleaseRowHeightPx)),
             Track(juce::Grid::Px(Layout::kLookAheadRowHeightPx)),
-            Track(juce::Grid::Px(Layout::kTogglesRowHeightPx))
+            Track(juce::Grid::Px(Layout::kTogglesRowHeightPx)),
+            Track(juce::Grid::Px(Layout::kAdvancedRowHeightPx))
         };
         g.rowGap = juce::Grid::Px(Layout::kRowGapPx);
         g.autoFlow = juce::Grid::AutoFlow::row;
         g.items = {
-            juce::GridItem(release).withMargin(Layout::kCellMarginPx),
+            juce::GridItem(releaseSec).withMargin(Layout::kCellMarginPx),
             juce::GridItem(lookAhead).withMargin(Layout::kCellMarginPx),
-            juce::GridItem(toggleRow).withMargin(Layout::kCellMarginPx)
+            juce::GridItem(toggleRow).withMargin(Layout::kCellMarginPx),
+            juce::GridItem(advanced).withMargin(Layout::kCellMarginPx)
         };
         g.performLayout(r);
 
@@ -76,7 +80,7 @@ public:
     }
 
     // Expose components if needed elsewhere
-    LabelledVSlider& getRelease() { return release; }
+    ReleaseSection& getReleaseSection() { return releaseSec; }
     LabelledVSlider& getLookAhead() { return lookAhead; }
     juce::ToggleButton& getScHpfToggle() { return scHpfToggle; }
     juce::ToggleButton& getSafetyToggle() { return safetyToggle; }
@@ -84,14 +88,14 @@ public:
 private:
     HungryGhostLimiterAudioProcessor::APVTS& apvts;
 
-    LabelledVSlider release;
+    ReleaseSection releaseSec;
     LabelledVSlider lookAhead;
 
     juce::Component toggleRow;
     juce::ToggleButton scHpfToggle{ "SC HPF" };
     juce::ToggleButton safetyToggle{ "SAFETY" };
+    AdvancedPanel advanced;
 
-    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> reAttach;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> laAttach;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> hpfAttach;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> safAttach;

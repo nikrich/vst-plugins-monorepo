@@ -7,24 +7,24 @@ enum class Variant { Dark, Light };
 
 struct Theme {
     // Base surfaces
-    juce::Colour bg        { 0xFF192033 }; // window background
-    juce::Colour panel     { 0xFF141821 }; // panels/cards
+    juce::Colour bg        { 0xFF121315 }; // window background
+    juce::Colour panel     { 0xFF1c1d20 }; // panels/cards
 
     // Text
-    juce::Colour text      { juce::Colours::white.withAlpha(0.92f) };
-    juce::Colour textMuted { juce::Colours::white.withAlpha(0.65f) };
+    juce::Colour text      { 0xFFE9EEF5 }; // primary text
+    juce::Colour textMuted { 0xFF9AA3AD }; // muted text / ticks
 
     // Tracks / fills (vertical sliders/meters)
-    juce::Colour trackTop  { 0xFF1B1F27 };
-    juce::Colour trackBot  { 0xFF141821 };
-    juce::Colour fillTop   { 0xFFFF3B3B }; // red
-    juce::Colour fillBot   { 0xFFFFB34D }; // orange
+    juce::Colour trackTop  { 0xFF2B2E35 }; // top of track
+    juce::Colour trackBot  { 0xFF202228 }; // bottom of track
+    juce::Colour fillTop   { 0xFFFFAD33 }; // orange top
+    juce::Colour fillBot   { 0xFFFF4D1F }; // orange bottom
 
-    // Accents / brand
-    juce::Colour accent1   { 0xFFFF3B3B };
-    juce::Colour accent2   { 0xFFFFB34D };
+    // Accents / brand (aqua ring for knobs)
+    juce::Colour accent1   { 0xFF35FFDF }; // aqua
+    juce::Colour accent2   { 0xFF0097A7 }; // teal
 
-    float outlineAlpha = 0.20f; // subtle outlines
+    float outlineAlpha = 0.16f; // subtle outlines
 };
 
 // Global theme accessors

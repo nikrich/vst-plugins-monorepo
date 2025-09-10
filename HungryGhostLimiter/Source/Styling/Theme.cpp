@@ -7,17 +7,22 @@ static Variant variant = Variant::Dark;
 
 static void applyDark()
 {
-    current.bg        = juce::Colour(0xFF192033);
-    current.panel     = juce::Colour(0xFF141821);
-    current.text      = juce::Colours::white.withAlpha(0.92f);
-    current.textMuted = juce::Colours::white.withAlpha(0.65f);
-    current.trackTop  = juce::Colour(0xFF1B1F27);
-    current.trackBot  = juce::Colour(0xFF141821);
-    current.fillTop   = juce::Colour(0xFFFF3B3B);
-    current.fillBot   = juce::Colour(0xFFFFB34D);
-    current.accent1   = current.fillTop;
-    current.accent2   = current.fillBot;
-    current.outlineAlpha = 0.20f;
+    // Map from CSS:
+    // --bg:#121315; --panel:#1c1d20; --text:#e9eef5; --muted:#9aa3ad;
+    // --track: top #2b2e35 -> bottom #202228
+    // --grad-orange: bottom #ff4d1f -> top #ffad33
+    // --aqua ring: #35ffdf -> #0097a7
+    current.bg        = juce::Colour(0xFF121315);
+    current.panel     = juce::Colour(0xFF1C1D20);
+    current.text      = juce::Colour(0xFFE9EEF5);
+    current.textMuted = juce::Colour(0xFF9AA3AD);
+    current.trackTop  = juce::Colour(0xFF2B2E35);
+    current.trackBot  = juce::Colour(0xFF202228);
+    current.fillTop   = juce::Colour(0xFFFFAD33);
+    current.fillBot   = juce::Colour(0xFFFF4D1F);
+    current.accent1   = juce::Colour(0xFF35FFDF);
+    current.accent2   = juce::Colour(0xFF0097A7);
+    current.outlineAlpha = 0.16f;
 }
 
 static void applyLight()

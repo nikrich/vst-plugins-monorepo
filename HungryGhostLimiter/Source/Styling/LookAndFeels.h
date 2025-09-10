@@ -70,7 +70,7 @@ struct NeonToggleLNF : juce::LookAndFeel_V4
 struct DonutKnobLNF : juce::LookAndFeel_V4
 {
     // colours via Style::theme() in draw
-    juce::Colour face{ 0xFF0F131A }; // inner face
+    juce::Colour face{ 0xFF0B1B1E }; // knob inner bg from CSS --knob-bg
 
     void drawRotarySlider(juce::Graphics& g, int x, int y, int w, int h,
         float pos, const float startAngle, const float endAngle,
@@ -84,25 +84,33 @@ struct DonutKnobLNF : juce::LookAndFeel_V4
 
         const float angle = startAngle + pos * (endAngle - startAngle);
 
-        // background ring
+        // background ring (track-like)
         juce::Path bg; bg.addCentredArc(centre.x, centre.y, radius, radius, 0.0f, startAngle, endAngle, true);
         juce::PathStrokeType stroke(radius - inner, juce::PathStrokeType::curved, juce::PathStrokeType::rounded);
-        g.setColour(Style::theme().panel);
+        juce::ColourGradient trackGrad(Style::theme().trackTop, centre.x, centre.y - radius,
+                                       Style::theme().trackBot, centre.x, centre.y + radius, false);
+        g.setGradientFill(trackGrad);
         g.strokePath(bg, stroke);
 
-        // value ring (gradient)
+        // value ring (aqua gradient accent)
         juce::Path val; val.addCentredArc(centre.x, centre.y, radius, radius, 0.0f, startAngle, angle, true);
-        juce::ColourGradient grad(Style::theme().fillBot, centre.x - radius, centre.y + radius,
-            Style::theme().fillTop, centre.x + radius, centre.y - radius, false);
+        juce::ColourGradient grad(Style::theme().accent1, centre.x - radius, centre.y + radius,
+                                  Style::theme().accent2, centre.x + radius, centre.y - radius, false);
         g.setGradientFill(grad);
         g.strokePath(val, stroke);
 
-        // inner face
-        g.setColour(face);
-        g.fillEllipse(juce::Rectangle<float>(2.0f * inner, 2.0f * inner).withCentre(centre));
+        // inner face with radial gradient (aqua → deep teal)
+        auto innerBounds = juce::Rectangle<float>(2.0f * inner, 2.0f * inner).withCentre(centre);
+        juce::ColourGradient innerGrad(juce::Colour(0xFF1FE7D0), innerBounds.getX(), innerBounds.getY(),
+                                       juce::Colour(0xFF004C59), innerBounds.getRight(), innerBounds.getBottom(), false);
+        innerGrad.isRadial = true;
+        innerGrad.point1 = { centre.x - inner * 0.3f, centre.y - inner * 0.3f };
+        innerGrad.point2 = { centre.x + inner * 0.7f, centre.y + inner * 0.7f };
+        g.setGradientFill(innerGrad);
+        g.fillEllipse(innerBounds);
 
         // value text
-        g.setColour(juce::Colours::white.withAlpha(0.9f));
+        g.setColour(Style::theme().text);
         g.setFont(juce::Font(juce::FontOptions(12.0f)));
         auto text = slider.getTextFromValue(slider.getValue());
         g.drawFittedText(text, r.toNearestInt(), juce::Justification::centred, 1);

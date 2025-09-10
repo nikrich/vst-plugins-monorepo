@@ -7,6 +7,7 @@
 #include "ui/Threshold.h"
 #include "ui/Ceiling.h"
 #include "ui/Layout.h"
+#include "ui/columns/InputsColumn.h"
 #include "ui/columns/ControlsColumn.h"
 #include "ui/columns/MeterColumn.h"
 #include "BinaryData.h"
@@ -36,7 +37,7 @@ private:
     juce::Label          logoSub;    // optional "LIMITER" text under the logo
 
     // Columns
-    StereoThreshold threshold;
+    InputsColumn    inputsCol;
     StereoCeiling   ceiling;
     ControlsColumn  controlsCol;
     MeterColumn     meterCol;

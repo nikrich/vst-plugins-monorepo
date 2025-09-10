@@ -81,6 +81,13 @@ void HungryGhostLimiterAudioProcessor::prepareToPlay(double sr, int samplesPerBl
 
     currentGainDb = 0.0f;
 
+    // init input trim smoothing (20 ms at native rate)
+    for (auto& s : inTrimLin)
+    {
+        s.reset(sampleRateHz, 0.02);
+        s.setCurrentAndTargetValue(1.0f);
+    }
+
     // initial latency report
     const auto* lookParam = apvts.getRawParameterValue("lookAheadMs");
     lastReportedLookMs = lookParam ? lookParam->load() : 1.0f;
@@ -97,6 +104,30 @@ void HungryGhostLimiterAudioProcessor::processBlock(juce::AudioBuffer<float>& bu
     const int numSmps = buffer.getNumSamples();
     if (numSmps == 0) return;
 
+    // --- INPUT TRIM (pre) ---
+    float inTrimLdB = 0.0f;
+    float inTrimRdB = 0.0f;
+    if (auto* v = apvts.getRawParameterValue("inTrimL")) inTrimLdB = v->load();
+    if (auto* v = apvts.getRawParameterValue("inTrimR")) inTrimRdB = v->load();
+    const bool inLink = (apvts.getRawParameterValue("inTrimLink") != nullptr)
+                        && (apvts.getRawParameterValue("inTrimLink")->load() > 0.5f);
+    if (inLink) inTrimRdB = inTrimLdB;
+
+    const float inGL = dbToLin(inTrimLdB);
+    const float inGR = dbToLin(inTrimRdB);
+
+    inTrimLin[0].setTargetValue(inGL);
+    inTrimLin[1].setTargetValue(inGR);
+
+    const int numCh = juce::jmin(buffer.getNumChannels(), 2);
+    for (int ch = 0; ch < numCh; ++ch)
+    {
+        auto* x = buffer.getWritePointer(ch);
+        auto& s = inTrimLin[ch];
+        for (int n = 0; n < numSmps; ++n)
+            x[n] *= s.getNextValue();
+    }
+
     // --- fetch params (atomic, no locks) ---
     const float thL = apvts.getRawParameterValue("thresholdL")->load();
     float       thR = apvts.getRawParameterValue("thresholdR")->load();
@@ -112,6 +143,8 @@ void HungryGhostLimiterAudioProcessor::processBlock(juce::AudioBuffer<float>& bu
     const float lookMs = apvts.getRawParameterValue("lookAheadMs")->load();
     const bool  scHPFOn = apvts.getRawParameterValue("scHpf")->load() > 0.5f;
     const bool  safetyOn = apvts.getRawParameterValue("safetyClip")->load() > 0.5f;
+    const bool  autoRel = (apvts.getRawParameterValue("autoRelease") != nullptr)
+                          && (apvts.getRawParameterValue("autoRelease")->load() > 0.5f);
 
     const float ceilLin = dbToLin(juce::jmin(ceilLDb, ceilRDb));
     const float preGainL = dbToLin(-thL);
@@ -148,6 +181,7 @@ void HungryGhostLimiterAudioProcessor::processBlock(juce::AudioBuffer<float>& bu
     p.lookAheadSamplesOS = lookAheadSamplesOS;
     p.scHpfOn = scHPFOn;
     p.safetyOn = safetyOn;
+    p.autoReleaseOn = autoRel;
 
     limiter.setParams(p);
     const float meterMaxAttenDb = limiter.processBlockOS(upL, upR, N);
@@ -230,6 +264,22 @@ HungryGhostLimiterAudioProcessor::createParameterLayout()
     // --- NEW: Safety soft clipper just beneath ceiling (oversampled) ---
     params.push_back(std::make_unique<AudioParameterBool>(
         ParameterID{ "safetyClip", 1 }, "Safety Clip", false));
+
+    // --- NEW: Stereo Input Trim (dB) + link ---
+    params.push_back(std::make_unique<AudioParameterFloat>(
+        ParameterID{ "inTrimL", 1 }, "Input Trim L",
+        NormalisableRange<float>(-24.0f, 24.0f, 0.01f, 0.5f), 0.0f));
+
+    params.push_back(std::make_unique<AudioParameterFloat>(
+        ParameterID{ "inTrimR", 1 }, "Input Trim R",
+        NormalisableRange<float>(-24.0f, 24.0f, 0.01f, 0.5f), 0.0f));
+
+    params.push_back(std::make_unique<AudioParameterBool>(
+        ParameterID{ "inTrimLink", 1 }, "Link Input Trim", true));
+
+    // --- NEW: Auto Release toggle ---
+    params.push_back(std::make_unique<AudioParameterBool>(
+        ParameterID{ "autoRelease", 1 }, "Auto Release", false));
 
     return { params.begin(), params.end() };
 }

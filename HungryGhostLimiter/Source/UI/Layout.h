@@ -20,6 +20,7 @@ inline constexpr int kColWidthMeterPx        = 80;
 inline constexpr int kReleaseRowHeightPx     = 160;
 inline constexpr int kLookAheadRowHeightPx   = 140;
 inline constexpr int kTogglesRowHeightPx     = 36;
+inline constexpr int kAdvancedRowHeightPx    = 120; // placeholder panel height
 
 // Threshold/Ceiling internal rows
 inline constexpr int kTitleRowHeightPx       = 28;
