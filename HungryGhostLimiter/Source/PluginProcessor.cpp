@@ -10,7 +10,7 @@ namespace
 
     inline float softClipTanhTo(float x, float limit, float k = 2.0f) noexcept
     {
-        // Normalise to ±1, tanh-soft-clip, rescale to 'limit'
+        // Normalise to ï¿½1, tanh-soft-clip, rescale to 'limit'
         const float xn = x / juce::jmax(limit, 1.0e-9f);
         const float yn = std::tanh(k * xn) / std::tanh(k);
         return yn * limit;
@@ -39,7 +39,7 @@ bool HungryGhostLimiterAudioProcessor::isBusesLayoutSupported(const BusesLayout&
 
 void HungryGhostLimiterAudioProcessor::buildOversampler(double sr, int samplesPerBlockExpected)
 {
-    // Choose factor: 8× for 44.1/48k, 4× for 88.2/96k or higher
+    // Choose factor: 8ï¿½ for 44.1/48k, 4ï¿½ for 88.2/96k or higher
     osFactor = (sr <= 48000.0 ? 8 : 4);
     osSampleRate = (float)(sr * osFactor);
 
@@ -58,23 +58,12 @@ void HungryGhostLimiterAudioProcessor::buildOversampler(double sr, int samplesPe
 
 //=====================================================================
 
-void HungryGhostLimiterAudioProcessor::updateSidechainFilter()
-{
-    // 2nd order HPF ~30 Hz at the OS rate (only in the detector path)
-    // 2nd order HPF ~30 Hz at the OS rate (only in the detector path)  
-    scHPFCoefs = juce::dsp::IIR::Coefficients<float>::makeHighPass(osSampleRate, 30.0);
-    scHPF_L.coefficients = scHPFCoefs;
-    scHPF_R.coefficients = scHPFCoefs;
-}
 
 //=====================================================================
 
-void HungryGhostLimiterAudioProcessor::updateLatencyReport()
+void HungryGhostLimiterAudioProcessor::updateLatencyReport(float lookMs)
 {
-    const auto* lookParam = apvts.getRawParameterValue("lookAheadMs");
-    const float lookMs = lookParam ? lookParam->load() : 1.0f;
     const int lookNative = (int)std::ceil(lookMs * 0.001f * sampleRateHz);
-
     // Report OS filter latency + look-ahead (both expressed at native rate)
     setLatencySamples(oversamplingLatencyNative + lookNative);
 }
@@ -86,20 +75,16 @@ void HungryGhostLimiterAudioProcessor::prepareToPlay(double sr, int samplesPerBl
     sampleRateHz = (float)sr;
 
     buildOversampler(sr, samplesPerBlockExpected);
-    updateSidechainFilter();
-
-    // Pre-allocate look-ahead delay lines and sliding max at OS rate (up to kMaxLookAheadMs)
+    // Prepare core DSP (OS rate)
     const int maxLASamplesOS = (int)std::ceil(kMaxLookAheadMs * 0.001f * osSampleRate) + 64;
-    delayL.reset(maxLASamplesOS);
-    delayR.reset(maxLASamplesOS);
-    slidingMax.reset(maxLASamplesOS);
-
-    // Meter smoothing uses block-rate seconds as time constant
-    attenDbSmoothed.reset(sampleRateHz, 0.08);
+    limiter.prepare(osSampleRate, maxLASamplesOS);
 
     currentGainDb = 0.0f;
 
-    updateLatencyReport();
+    // initial latency report
+    const auto* lookParam = apvts.getRawParameterValue("lookAheadMs");
+    lastReportedLookMs = lookParam ? lookParam->load() : 1.0f;
+    updateLatencyReport(lastReportedLookMs);
 }
 
 //=====================================================================
@@ -125,18 +110,22 @@ void HungryGhostLimiterAudioProcessor::processBlock(juce::AudioBuffer<float>& bu
     const bool  safetyOn = apvts.getRawParameterValue("safetyClip")->load() > 0.5f;
 
     const float ceilLin = dbToLin(ceilingDb);
-    const float preGainL = dbToLin(-thL); // your original "threshold as input gain" concept, preserved
+    const float preGainL = dbToLin(-thL);
     const float preGainR = dbToLin(-thR);
 
     // --- derive OS-time constants ---
-    lookAheadSamplesOS = juce::jlimit(1, (int)delayL.buf.size() - 1,
-        (int)std::round(lookMs * 0.001f * osSampleRate));
+    lookAheadSamplesOS = juce::jlimit(1, (int)std::round(lookMs * 0.001f * osSampleRate) - 0 + 0,
+        (int)std::round(lookMs * 0.001f * osSampleRate)); // value used only for limiter params
 
     const float relSec = juce::jlimit(0.001f, 2.0f, releaseMs * 0.001f);
-    releaseAlphaOS = std::exp(-1.0f / (relSec * osSampleRate)); // one-pole toward target (release only)
+    releaseAlphaOS = std::exp(-1.0f / (relSec * osSampleRate));
 
-    // --- latency report (cheap) if look-ahead changed noticeably ---
-    updateLatencyReport();
+    // --- latency report (cheap) only if look-ahead changed noticeably ---
+    if (!std::isfinite(lastReportedLookMs) || std::abs(lookMs - lastReportedLookMs) > 1.0e-3f)
+    {
+        updateLatencyReport(lookMs);
+        lastReportedLookMs = lookMs;
+    }
 
     // --- oversample up ---
     juce::dsp::AudioBlock<float> inBlock(buffer);
@@ -146,66 +135,24 @@ void HungryGhostLimiterAudioProcessor::processBlock(juce::AudioBuffer<float>& bu
     auto* upR = upBlock.getChannelPointer(1);
     const int N = (int)upBlock.getNumSamples();
 
-    float meterMaxAttenDb = 0.0f;
+    // Prepare params for core DSP
+    hgl::LimiterParams p;
+    p.preGainL = preGainL;
+    p.preGainR = preGainR;
+    p.ceilLin  = ceilLin;
+    p.releaseAlphaOS = releaseAlphaOS;
+    p.lookAheadSamplesOS = lookAheadSamplesOS;
+    p.scHpfOn = scHPFOn;
+    p.safetyOn = safetyOn;
 
-    for (int i = 0; i < N; ++i)
-    {
-        // 1) pre-gain at OS rate
-        float xl = upL[i] * preGainL;
-        float xr = upR[i] * preGainR;
-
-        // 2) sidechain detection (optional HPF)
-        float dl = scHPFOn ? scHPF_L.processSample(xl) : xl;
-        float dr = scHPFOn ? scHPF_R.processSample(xr) : xr;
-
-        const float a = juce::jmax(std::abs(dl), std::abs(dr)); // stereo max-link
-        slidingMax.push(a, lookAheadSamplesOS);
-        const float aMax = slidingMax.getMax();
-
-        // 3) required gain to hit ceiling (true-peak @ OS): <= 1
-        float gReq = 1.0f;
-        if (aMax > ceilLin)
-            gReq = ceilLin / (aMax + 1.0e-12f);
-
-        const float gReqDb = linToDb(gReq); // <= 0 dB
-
-        // 4) Attack (instant due to look-ahead) + program release
-        if (gReqDb < currentGainDb)               // need more attenuation (more negative dB)
-            currentGainDb = gReqDb;              // jump instantly
-        else                                      // release toward target (usually 0 dB)
-            currentGainDb = currentGainDb * releaseAlphaOS + gReqDb * (1.0f - releaseAlphaOS);
-
-        const float gLin = dbToLin(currentGainDb);
-
-        // 5) delay main (look-ahead), then apply same gain to both channels
-        float yl = delayL.processSample(xl, lookAheadSamplesOS) * gLin;
-        float yr = delayR.processSample(xr, lookAheadSamplesOS) * gLin;
-
-        // 6) optional ultra-gentle soft clip as a safety (still at OS rate)
-        if (safetyOn)
-        {
-            constexpr float safetyBelowCeilDb = -0.1f; // 0.1 dB beneath ceiling
-            const float safetyLimit = ceilLin * dbToLin(safetyBelowCeilDb);
-
-            if (std::abs(yl) > safetyLimit) yl = softClipTanhTo(yl, safetyLimit);
-            if (std::abs(yr) > safetyLimit) yr = softClipTanhTo(yr, safetyLimit);
-        }
-
-        // write back to OS buffer
-        upL[i] = yl;
-        upR[i] = yr;
-
-        const float attenDb = -currentGainDb; // positive dB of reduction
-        if (attenDb > meterMaxAttenDb) meterMaxAttenDb = attenDb;
-    }
+    limiter.setParams(p);
+    const float meterMaxAttenDb = limiter.processBlockOS(upL, upR, N);
 
     // --- downsample back to host rate ---
     oversampler->processSamplesDown(inBlock);
 
-    // --- meter smoothing (host rate) ---
-    const double releaseSeconds = juce::jlimit(0.005, 2.0, (double)releaseMs * 0.001);
-    attenDbSmoothed.reset(sampleRateHz, releaseSeconds);
-    attenDbSmoothed.setTargetValue(juce::jlimit(0.0f, 24.0f, meterMaxAttenDb));
+    // --- meter (host rate): store raw dB and let UI smooth
+    attenDbRaw.store(juce::jlimit(0.0f, 24.0f, meterMaxAttenDb), std::memory_order_relaxed);
 }
 
 //=====================================================================

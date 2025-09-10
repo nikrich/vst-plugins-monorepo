@@ -18,9 +18,12 @@ void AttenMeter::timerCallback()
     const float tauMs = rising ? attackTimeMs : releaseTimeMs;
 
     const float alpha = 1.0f - std::exp(-dtMs / juce::jmax(1.0f, tauMs));
+    const float old = displayDb;
     displayDb += alpha * (targetDb - displayDb);
+    displayDb = juce::jlimit(0.0f, 12.0f, displayDb);
 
-    repaint();
+    if (std::abs(displayDb - old) > 0.01f)
+        repaint();
 }
 
 void AttenMeter::paint(juce::Graphics& g)
