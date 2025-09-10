@@ -71,7 +71,7 @@ public:
             Track(juce::Grid::Px(Layout::kLinkRowHeightPx))
         };
         g.rowGap = juce::Grid::Px(Layout::kRowGapPx);
-        g.columnGap = juce::Grid::Px(Layout::kColGapPx);
+        g.columnGap = juce::Grid::Px(Layout::kBarGapPx);
 
         auto titleItem = juce::GridItem(title).withMargin(Layout::kCellMarginPx);
         titleItem.column = { 1, 2 }; // span both columns

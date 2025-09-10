@@ -33,7 +33,7 @@ void PillVSliderLNF::drawLinearSlider(juce::Graphics& g, int x, int y, int w, in
     juce::ignoreUnused(sliderPos, minPos, maxPos, style);
 
     auto bounds = juce::Rectangle<float>(x, y, (float)w, (float)h)
-        .reduced(juce::jmax(w * 0.35f, 6.0f), 6.0f);
+        .reduced(juce::jmax(w * 0.45f, 6.0f), 6.0f);
     bounds.removeFromBottom(4.0f);
     const float radius = bounds.getWidth() * 0.5f;
 

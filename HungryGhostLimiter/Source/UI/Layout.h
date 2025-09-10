@@ -6,6 +6,7 @@ namespace Layout
 // Overall UI
 inline constexpr int kPaddingPx              = 8;   // outer window padding
 inline constexpr int kColGapPx               = 12;  // gap between columns
+inline constexpr int kBarGapPx               = 6;   // gap between paired vertical bars (L/R)
 inline constexpr int kRowGapPx               = 8;   // gap between rows (within columns)
 inline constexpr int kCellMarginPx           = 4;   // margin around grid items
 inline constexpr int kHeaderHeightPx         = 88;  // header (logo + subtitle)

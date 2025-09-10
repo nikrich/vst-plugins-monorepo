@@ -5,7 +5,7 @@ HungryGhostLimiterAudioProcessorEditor::HungryGhostLimiterAudioProcessorEditor(H
     : juce::AudioProcessorEditor(&p)
     , proc(p)
     , inputsCol(proc.apvts)
-    , ceiling(proc.apvts)
+    , thrCeilCol(proc.apvts)
     , controlsCol(proc.apvts, &donutLNF, &pillLNF, &neonToggleLNF)
     , meterCol()
 {
@@ -34,12 +34,12 @@ HungryGhostLimiterAudioProcessorEditor::HungryGhostLimiterAudioProcessorEditor(H
     // hide the old title if you had one
     title.setVisible(false);
 
-    // Skin Input & Threshold L/R with the pill L&F
+    // Skin Input, Threshold & Ceiling with the pill L&F
     inputsCol.setSliderLookAndFeel(&pillLNF);
-    ceiling.setSliderLookAndFeel(&pillLNF);
+    thrCeilCol.setSliderLookAndFeel(&pillLNF);
 
     addAndMakeVisible(inputsCol);
-    addAndMakeVisible(ceiling);
+    addAndMakeVisible(thrCeilCol);
     addAndMakeVisible(controlsCol);
     addAndMakeVisible(meterCol);
 
@@ -89,28 +89,28 @@ void HungryGhostLimiterAudioProcessorEditor::resized()
 
     logoSub.setBounds(logoBounds.withY(logoBounds.getBottom() - 16).withHeight(16));
 
-    // --- Content: 4 fixed-width columns ---
+    // --- Content: 4 columns laid out with FlexBox ---
     const int required = Layout::kTotalColsWidthPx;
-    auto rowBounds = bounds.withWidth(juce::jmin(required, bounds.getWidth()));
-    rowBounds.setX(bounds.getX() + (bounds.getWidth() - rowBounds.getWidth()) / 2);
+    auto content = bounds.withWidth(juce::jmin(required, bounds.getWidth()));
+    content.setX(bounds.getX() + (bounds.getWidth() - content.getWidth()) / 2);
 
-    juce::Grid grid;
-    using Track = juce::Grid::TrackInfo;
-    grid.templateColumns = {
-        Track(juce::Grid::Px(Layout::kColWidthThresholdPx)),
-        Track(juce::Grid::Px(Layout::kColWidthCeilingPx)),
-        Track(juce::Grid::Px(Layout::kColWidthControlPx)),
-        Track(juce::Grid::Px(Layout::kColWidthMeterPx))
+    juce::FlexBox row;
+    row.flexDirection = juce::FlexBox::Direction::row;
+    row.alignContent  = juce::FlexBox::AlignContent::stretch;
+
+    auto addCol = [&](juce::Component& c, int basisPx, float grow, bool first)
+    {
+        auto it = juce::FlexItem(c).withWidth((float)basisPx).withFlex(grow);
+        it.margin = first ? juce::FlexItem::Margin{ (float)Layout::kCellMarginPx } : juce::FlexItem::Margin{ (float)Layout::kCellMarginPx, (float)Layout::kCellMarginPx, (float)Layout::kCellMarginPx, (float)Layout::kColGapPx };
+        row.items.add(it);
     };
-    grid.templateRows = { Track(juce::Grid::Fr(1)) };
-    grid.columnGap = juce::Grid::Px(Layout::kColGapPx);
-    grid.items = {
-        juce::GridItem(inputsCol).withMargin(Layout::kCellMarginPx),
-        juce::GridItem(ceiling).withMargin(Layout::kCellMarginPx),
-        juce::GridItem(controlsCol).withMargin(Layout::kCellMarginPx),
-        juce::GridItem(meterCol).withMargin(Layout::kCellMarginPx)
-    };
-    grid.performLayout(rowBounds);
+
+    addCol(inputsCol,  Layout::kColWidthThresholdPx, 0.0f, true);
+    addCol(thrCeilCol, Layout::kColWidthCeilingPx,   0.0f, false);
+    addCol(controlsCol,Layout::kColWidthControlPx,   1.0f, false);
+    addCol(meterCol,   Layout::kColWidthMeterPx,     0.0f, false);
+
+    row.performLayout(content);
 }
 
 void HungryGhostLimiterAudioProcessorEditor::timerCallback()

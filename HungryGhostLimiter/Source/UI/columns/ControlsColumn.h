@@ -10,6 +10,7 @@
 //  1) Release (rotary + Auto toggle)
 //  2) LookAhead (vertical bar)
 //  3) Two toggles (SC HPF, SAFETY)
+//  4) Collapsible Advanced panel
 class ControlsColumn : public juce::Component {
 public:
     ControlsColumn(HungryGhostLimiterAudioProcessor::APVTS& apvts,
@@ -28,15 +29,29 @@ public:
             safetyToggle.setLookAndFeel(neonToggleLNF);
         }
 
+        // Basic rows
         addAndMakeVisible(releaseSec);
         addAndMakeVisible(lookAhead);
-        addAndMakeVisible(advanced);
 
+        // Toggles row
         scHpfToggle.setButtonText("SC HPF");
         safetyToggle.setButtonText("SAFETY");
         addAndMakeVisible(toggleRow);
         toggleRow.addAndMakeVisible(scHpfToggle);
         toggleRow.addAndMakeVisible(safetyToggle);
+
+        // Advanced toggle + panel
+        advancedToggle.setButtonText("Advanced ▸");
+        advancedToggle.onClick = [this]
+        {
+            advancedOpen = !advancedOpen;
+            advanced.setVisible(advancedOpen);
+            advancedToggle.setButtonText(advancedOpen ? "Advanced ▾" : "Advanced ▸");
+            resized();
+        };
+        addAndMakeVisible(advancedToggle);
+        advanced.setVisible(false);
+        addAndMakeVisible(advanced);
 
         // Attachments
         laAttach = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(apvts, "lookAheadMs", lookAhead.slider);
@@ -48,35 +63,54 @@ public:
 
     void resized() override
     {
-        auto r = getLocalBounds();
-
-        juce::Grid g;
-        using Track = juce::Grid::TrackInfo;
-        g.templateColumns = { Track(juce::Grid::Fr(1)) };
-        g.templateRows = {
-            Track(juce::Grid::Px(Layout::kReleaseRowHeightPx)),
-            Track(juce::Grid::Px(Layout::kLookAheadRowHeightPx)),
-            Track(juce::Grid::Px(Layout::kTogglesRowHeightPx)),
-            Track(juce::Grid::Px(Layout::kAdvancedRowHeightPx))
-        };
-        g.rowGap = juce::Grid::Px(Layout::kRowGapPx);
-        g.autoFlow = juce::Grid::AutoFlow::row;
-        g.items = {
-            juce::GridItem(releaseSec).withMargin(Layout::kCellMarginPx),
-            juce::GridItem(lookAhead).withMargin(Layout::kCellMarginPx),
-            juce::GridItem(toggleRow).withMargin(Layout::kCellMarginPx),
-            juce::GridItem(advanced).withMargin(Layout::kCellMarginPx)
-        };
-        g.performLayout(r);
+        auto bounds = getLocalBounds();
 
         // Layout toggles inside toggleRow: two equal halves with a small gap
-        auto tr = toggleRow.getLocalBounds();
-        const int gap = Layout::kCellMarginPx;
-        auto left = tr.removeFromLeft(tr.getWidth() / 2 - gap / 2);
-        tr.removeFromLeft(gap);
-        auto right = tr;
-        scHpfToggle.setBounds(left.reduced(2));
-        safetyToggle.setBounds(right.reduced(2));
+        auto layoutToggleRow = [&]()
+        {
+            auto tr = toggleRow.getLocalBounds();
+            const int gap = Layout::kCellMarginPx;
+            auto left = tr.removeFromLeft(tr.getWidth() / 2 - gap / 2);
+            tr.removeFromLeft(gap);
+            auto right = tr;
+            scHpfToggle.setBounds(left.reduced(2));
+            safetyToggle.setBounds(right.reduced(2));
+        };
+
+        juce::FlexBox fb;
+        fb.flexDirection = juce::FlexBox::Direction::column;
+        fb.alignContent = juce::FlexBox::AlignContent::stretch;
+        fb.items.clear();
+
+        auto row = [&](juce::Component& c, int h)
+        {
+            fb.items.add(juce::FlexItem(c)
+                .withHeight((float)h)
+                .withMargin({ (float)Layout::kCellMarginPx, (float)Layout::kCellMarginPx, (float)Layout::kRowGapPx, (float)Layout::kCellMarginPx }));
+        };
+
+        row(releaseSec, Layout::kReleaseRowHeightPx);
+        row(lookAhead,  Layout::kLookAheadRowHeightPx);
+        row(toggleRow,  Layout::kTogglesRowHeightPx);
+        
+        // Advanced toggle (small row)
+        fb.items.add(juce::FlexItem(advancedToggle)
+            .withHeight(24.0f)
+            .withMargin({ (float)Layout::kCellMarginPx, (float)Layout::kCellMarginPx, (float)(advancedOpen ? Layout::kRowGapPx : Layout::kCellMarginPx), (float)Layout::kCellMarginPx }));
+
+        if (advancedOpen)
+        {
+            fb.items.add(juce::FlexItem(advanced)
+                .withHeight((float)Layout::kAdvancedRowHeightPx)
+                .withMargin({ 0, (float)Layout::kCellMarginPx, (float)Layout::kCellMarginPx, (float)Layout::kCellMarginPx }));
+        }
+
+        // spacer to push content to top
+        fb.items.add(juce::FlexItem().withFlex(1.0f));
+
+        fb.performLayout(bounds);
+
+        layoutToggleRow();
     }
 
     // Expose components if needed elsewhere
@@ -94,6 +128,10 @@ private:
     juce::Component toggleRow;
     juce::ToggleButton scHpfToggle{ "SC HPF" };
     juce::ToggleButton safetyToggle{ "SAFETY" };
+
+    // Collapsible advanced
+    bool advancedOpen { false };
+    juce::TextButton advancedToggle { "Advanced ▸" };
     AdvancedPanel advanced;
 
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> laAttach;

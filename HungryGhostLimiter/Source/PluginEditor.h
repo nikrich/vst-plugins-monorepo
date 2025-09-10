@@ -8,6 +8,7 @@
 #include "ui/Ceiling.h"
 #include "ui/Layout.h"
 #include "ui/columns/InputsColumn.h"
+#include "ui/columns/ThrCeilColumn.h"
 #include "ui/columns/ControlsColumn.h"
 #include "ui/columns/MeterColumn.h"
 #include "BinaryData.h"
@@ -38,7 +39,7 @@ private:
 
     // Columns
     InputsColumn    inputsCol;
-    StereoCeiling   ceiling;
+    ThrCeilColumn   thrCeilCol;
     ControlsColumn  controlsCol;
     MeterColumn     meterCol;
 
