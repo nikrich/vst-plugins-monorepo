@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-test-hgl:
+    name: Build & Test HungryGhostLimiter (macOS)
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Show Xcode info
+        run: |
+          xcodebuild -version
+          xcode-select -p
+
+      - name: Configure HungryGhostLimiter (Xcode generator)
+        run: |
+          cmake -S HungryGhostLimiter -B HungryGhostLimiter/build -G Xcode
+
+      - name: Build tests (Debug)
+        run: |
+          cmake --build HungryGhostLimiter/build --config Debug --target HGLTests_DSP HGLTests_Proc
+
+      - name: Run tests (DSP)
+        run: |
+          ./HungryGhostLimiter/build/HGLTests_DSP_artefacts/Debug/HGLTests_DSP
+
+      - name: Run tests (Processor)
+        run: |
+          ./HungryGhostLimiter/build/HGLTests_Proc_artefacts/Debug/HGLTests_Proc
+
+      - name: Build plugin (Release)
+        run: |
+          cmake --build HungryGhostLimiter/build --config Release --target HungryGhostLimiter_VST3
+
+      - name: Upload plugin artefacts (VST3 Bundle)
+        uses: actions/upload-artifact@v4
+        with:
+          name: HungryGhostLimiter-vst3-macos
+          path: |
+            HungryGhostLimiter/build/HungryGhostLimiter_artefacts/Release/VST3/**/*.vst3
+            HungryGhostLimiter/build/HungryGhostLimiter_artefacts/Release/VST3/**/*.vst3/**
+
