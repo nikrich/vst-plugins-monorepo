@@ -98,8 +98,12 @@ public:
             {
                 auto fill = bf.withY(bf.getBottom() - bf.getHeight() * norm)
                               .withHeight(bf.getHeight() * norm);
-                juce::ColourGradient fillGrad(th.fillBot, fill.getX(), fill.getBottom(),
-                                              th.fillTop, fill.getX(), fill.getY(), false);
+                // Typical output meter colours: green -> yellow -> red (bottom -> top)
+                juce::Colour bottomCol = juce::Colours::limegreen;
+                juce::Colour topCol    = juce::Colours::red;
+                // Single gradient will blend through yellow naturally
+                juce::ColourGradient fillGrad(bottomCol, fill.getX(), fill.getBottom(),
+                                              topCol,    fill.getX(), fill.getY(), false);
                 g.setGradientFill(fillGrad);
                 g.fillRect(fill);
             }
