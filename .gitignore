@@ -43,3 +43,4 @@
 .vs
 /*/Builds
 /*/build
+.DS_Store

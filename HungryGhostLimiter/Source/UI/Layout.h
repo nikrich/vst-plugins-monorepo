@@ -12,6 +12,7 @@ inline constexpr int kCellMarginPx           = 4;   // margin around grid items
 inline constexpr int kHeaderHeightPx         = 88;  // header (logo + subtitle)
 
 // Fixed column widths
+inline constexpr int kColWidthInputsPx       = 180; // optional inputs/trim column
 inline constexpr int kColWidthThresholdPx    = 220;
 inline constexpr int kColWidthCeilingPx      = 220;
 inline constexpr int kColWidthControlPx      = 180;
@@ -33,8 +34,14 @@ inline constexpr int kLinkRowHeightPx        = 24;
 inline constexpr int kMeterLabelHeightPx     = 20;
 inline constexpr int kMeterHeightPx          = 320; // fits 760x460 content height
 
+// Output column
+inline constexpr int kColWidthOutputPx       = 100;
+
+// Footer / advanced controls
+inline constexpr int kFooterHeightPx         = 120;
+
 inline constexpr int kTotalColsWidthPx =
-    kColWidthThresholdPx + kColWidthCeilingPx + kColWidthControlPx + kColWidthMeterPx
-    + 3 * kColGapPx;
+    kColWidthInputsPx + kColWidthThresholdPx + kColWidthCeilingPx + kColWidthControlPx + kColWidthMeterPx + kColWidthOutputPx
+    + 5 * kColGapPx;
 }
 
