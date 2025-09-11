@@ -9,6 +9,7 @@ HungryGhostLimiterAudioProcessorEditor::HungryGhostLimiterAudioProcessorEditor(H
     , ceiling(proc.apvts)
     , controlsCol(proc.apvts, &donutLNF, &pillLNF, &neonToggleLNF)
     , meterCol()
+    , advanced(proc.apvts)
 {
     setLookAndFeel(&lnf);
     setResizable(false, false);

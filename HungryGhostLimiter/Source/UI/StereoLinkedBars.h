@@ -88,26 +88,39 @@ public:
         g.templateColumns = { Track(juce::Grid::Fr(1)), Track(juce::Grid::Fr(1)) };
         g.templateRows = {
             Track(juce::Grid::Px(Layout::kTitleRowHeightPx)),
-            Track(juce::Grid::Px(Layout::kChannelLabelRowHeightPx)),
             Track(juce::Grid::Px(Layout::kLargeSliderRowHeightPx)),
+            Track(juce::Grid::Px(Layout::kChannelLabelRowHeightPx)),
             Track(juce::Grid::Px(Layout::kLinkRowHeightPx))
         };
         g.rowGap    = juce::Grid::Px(Layout::kRowGapPx);
-        g.columnGap = juce::Grid::Px(Layout::kColGapPx);
+        g.columnGap = juce::Grid::Px(0); // eliminate inter-column gap; control spacing via per-item margins
         g.justifyItems = juce::Grid::JustifyItems::stretch;
         g.alignItems   = juce::Grid::AlignItems::stretch;
 
         auto titleItem = juce::GridItem(title).withMargin(Layout::kCellMarginPx)
                                                 .withArea(1, 1, 2, 3);
 
-        auto ll = juce::GridItem(labelL).withMargin(Layout::kCellMarginPx)
-                                         .withArea(2, 1);
-        auto lr = juce::GridItem(labelR).withMargin(Layout::kCellMarginPx)
-                                         .withArea(2, 2);
-        auto sl = juce::GridItem(sliderL).withMargin(Layout::kCellMarginPx)
-                                          .withArea(3, 1);
-        auto sr = juce::GridItem(sliderR).withMargin(Layout::kCellMarginPx)
-                                          .withArea(3, 2);
+        // Sliders: minimal center gap using asymmetric margins
+        auto sl = juce::GridItem(sliderL)
+                        .withMargin(juce::GridItem::Margin(
+                            (float)Layout::kCellMarginPx, /*right*/ 2.0f,
+                            (float)Layout::kCellMarginPx, (float)Layout::kCellMarginPx))
+                        .withArea(2, 1);
+        auto sr = juce::GridItem(sliderR)
+                        .withMargin(juce::GridItem::Margin(
+                            (float)Layout::kCellMarginPx, (float)Layout::kCellMarginPx,
+                            (float)Layout::kCellMarginPx, /*left*/ 2.0f))
+                        .withArea(2, 2);
+
+        // Labels below sliders: small top + center gap
+        auto ll = juce::GridItem(labelL)
+                        .withMargin(juce::GridItem::Margin(
+                            2.0f, /*right*/ 2.0f, 0.0f, (float)Layout::kCellMarginPx))
+                        .withArea(3, 1);
+        auto lr = juce::GridItem(labelR)
+                        .withMargin(juce::GridItem::Margin(
+                            2.0f, (float)Layout::kCellMarginPx, 0.0f, /*left*/ 2.0f))
+                        .withArea(3, 2);
 
         auto linkItem = juce::GridItem(linkButton).withMargin(Layout::kCellMarginPx)
                                                   .withArea(4, 2)
