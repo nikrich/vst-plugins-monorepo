@@ -1,24 +1,26 @@
 #pragma once
 #include <juce_gui_extra/juce_gui_extra.h>
 #include "../Layout.h"
+#include "../OutputMeters.h"
+#include "../../PluginProcessor.h"
 
-// Simple rightmost column placeholder for output-related controls (to be expanded)
+// Output column: read-only live output meters (post-processor)
 class OutputColumn : public juce::Component {
 public:
-    OutputColumn() {
-        title.setText("OUTPUT", juce::dontSendNotification);
-        title.setJustificationType(juce::Justification::centred);
-        title.setInterceptsMouseClicks(false, false);
-        title.setColour(juce::Label::textColourId, juce::Colours::white.withAlpha(0.95f));
-        title.setFont(juce::Font(juce::FontOptions(14.0f, juce::Font::bold)));
-        addAndMakeVisible(title);
+    explicit OutputColumn(HungryGhostLimiterAudioProcessor::APVTS&)
+    {
+        addAndMakeVisible(meters);
     }
 
-    void resized() override {
-        title.setBounds(getLocalBounds());
-    }
+    void setLevelsDbFs(float lDb, float rDb) { meters.setLevelsDbFs(lDb, rDb); }
+    void setSmoothing(float attackMs, float releaseMs) { meters.setSmoothing(attackMs, releaseMs); }
+    void setSliderLookAndFeel(juce::LookAndFeel*) {}
+
+    void resized() override { meters.setBounds(getLocalBounds()); }
 
 private:
-    juce::Label title;
+    OutputMeters meters;
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(OutputColumn)
 };
 

@@ -12,7 +12,7 @@
 #include "ui/columns/MeterColumn.h"
 #include "ui/columns/OutputColumn.h"
 #include "ui/sections/LogoHeader.h"
-#include "ui/sections/AdvancedControls.h"
+#include "UI/AdvancedPanel.h"
 #include "BinaryData.h"
 #include "styling/Theme.h"
 class HungryGhostLimiterAudioProcessorEditor
@@ -37,7 +37,7 @@ private:
 
     // Sections
     LogoHeader       logoHeader;
-    AdvancedControls advanced;
+    AdvancedPanel    advanced;
 
     // Columns
     InputsColumn    inputsCol;

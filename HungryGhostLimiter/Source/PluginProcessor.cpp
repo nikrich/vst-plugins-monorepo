@@ -262,6 +262,37 @@ void HungryGhostLimiterAudioProcessor::processBlock(juce::AudioBuffer<float>& bu
         }
     }
 
+    // --- post output volume (host rate, after all processing) ---
+    float outLdB = 0.0f, outRdB = 0.0f;
+    if (auto* v = apvts.getRawParameterValue("outVolL")) outLdB = v->load();
+    if (auto* v = apvts.getRawParameterValue("outVolR")) outRdB = v->load();
+    const bool outLink = (apvts.getRawParameterValue("outVolLink") != nullptr)
+                         && (apvts.getRawParameterValue("outVolLink")->load() > 0.5f);
+    if (outLink) outRdB = outLdB;
+
+    const float gL = dbToLin(outLdB);
+    const float gR = dbToLin(outRdB);
+    {
+        const int numCh = juce::jmin(buffer.getNumChannels(), 2);
+        const int N2 = buffer.getNumSamples();
+        float peak[2] { 0.0f, 0.0f };
+        for (int ch = 0; ch < numCh; ++ch)
+        {
+            float* x = buffer.getWritePointer(ch);
+            const float g = (ch == 0 ? gL : gR);
+            for (int n = 0; n < N2; ++n) {
+                x[n] *= g;
+                peak[ch] = juce::jmax(peak[ch], std::abs(x[n]));
+            }
+        }
+        // convert to dBFS and clamp
+        for (int ch = 0; ch < numCh; ++ch)
+        {
+            const float db = 20.0f * std::log10(juce::jmax(peak[ch], 1.0e-5f)); // [-100,0]
+            outDbRaw[ch].store(juce::jlimit(-60.0f, 0.0f, db), std::memory_order_relaxed);
+        }
+    }
+
     // --- meter (host rate): store raw dB and let UI smooth
     attenDbRaw.store(juce::jlimit(0.0f, 24.0f, meterMaxAttenDb), std::memory_order_relaxed);
 }
@@ -374,6 +405,18 @@ HungryGhostLimiterAudioProcessor::createParameterLayout()
     params.push_back(std::make_unique<AudioParameterBool>(ParameterID{ "domDigital", 1 }, "Domain Digital", false));
     params.push_back(std::make_unique<AudioParameterBool>(ParameterID{ "domAnalog",  1 }, "Domain Analog",  false));
     params.push_back(std::make_unique<AudioParameterBool>(ParameterID{ "domTruePeak",1 }, "Domain TruePeak", true));
+
+    // --- Output Volume (post-processing), stereo + link ---
+    params.push_back(std::make_unique<AudioParameterFloat>(
+        ParameterID{ "outVolL", 1 }, "Output Vol L",
+        NormalisableRange<float>(-24.0f, 24.0f, 0.01f, 0.5f), 0.0f));
+
+    params.push_back(std::make_unique<AudioParameterFloat>(
+        ParameterID{ "outVolR", 1 }, "Output Vol R",
+        NormalisableRange<float>(-24.0f, 24.0f, 0.01f, 0.5f), 0.0f));
+
+    params.push_back(std::make_unique<AudioParameterBool>(
+        ParameterID{ "outVolLink", 1 }, "Link Output Vol", true));
 
     return { params.begin(), params.end() };
 }
