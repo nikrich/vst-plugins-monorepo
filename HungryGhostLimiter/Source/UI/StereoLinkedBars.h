@@ -7,6 +7,25 @@
 // Parameter IDs are provided at construction.
 class StereoLinkedBars : public juce::Component {
 public:
+    // Small square handle that can be dragged vertically
+    class DraggableHandle : public juce::Component {
+    public:
+        enum class Mode { Left, Right, Both };
+        DraggableHandle(StereoLinkedBars& owner, Mode m) : parent(owner), mode(m) { setRepaintsOnMouseActivity(true); setMouseCursor(juce::MouseCursor::UpDownResizeCursor); }
+        void paint(juce::Graphics& g) override {
+            auto r = getLocalBounds().toFloat();
+            g.setColour(juce::Colours::black.withAlpha(isMouseOver() ? 0.9f : 0.8f));
+            g.drawRoundedRectangle(r.reduced(1.0f), 4.0f, 3.0f);
+        }
+        void mouseDrag(const juce::MouseEvent& e) override { parent.onHandleDrag(mode, (float) (getY() + e.getPosition().y)); }
+        void mouseDown(const juce::MouseEvent& e) override { startY = (float)e.getPosition().y; }
+    private:
+        float startY { 0.0f };
+        Mode getMode() const { return mode; }
+    private:
+        StereoLinkedBars& parent;
+        Mode mode;
+    };
     using APVTS = HungryGhostLimiterAudioProcessor::APVTS;
 
     StereoLinkedBars(APVTS& apvts,
@@ -54,6 +73,11 @@ public:
         // Link toggle
         addAndMakeVisible(linkButton);
 
+        // Handles
+        addChildComponent(handleBoth);
+        addChildComponent(handleL);
+        addChildComponent(handleR);
+
         // Attachments
         attL = std::make_unique<APVTS::SliderAttachment>(apvts, paramLId, sliderL);
         attR = std::make_unique<APVTS::SliderAttachment>(apvts, paramRId, sliderR);
@@ -74,6 +98,8 @@ public:
                 sliderR.setValue(sliderL.getValue(), juce::sendNotificationSync);
                 syncing = false;
             }
+            updateHandlesVisibility();
+            updateHandlePositions();
         };
     }
 
@@ -140,6 +166,12 @@ public:
 
         g.items = { titleItem, sl, sr, ll, lr, linkItem };
         g.performLayout(getLocalBounds());
+
+        // Update drag track and handles
+        dragTrack = sliderL.getBounds().withRight(sliderR.getRight());
+        dragTrack = dragTrack.reduced(juce::jmax(sliderL.getWidth() / 4, 4), 4);
+        updateHandlesVisibility();
+        updateHandlePositions();
     }
 
     // Live meter overlay (normalized 0..1, where 1 = 0 dBFS).
@@ -171,6 +203,65 @@ public:
     }
 
 private:
+    void updateHandlesVisibility()
+    {
+        const bool linked = linkButton.getToggleState();
+        handleBoth.setVisible(linked);
+        handleL.setVisible(!linked);
+        handleR.setVisible(!linked);
+    }
+
+    float valueToY(const juce::Slider& s) const
+    {
+        auto r = dragTrack;
+        auto range = s.getRange();
+        const double prop = range.getLength() > 0.0 ? (s.getValue() - range.getStart()) / range.getLength() : 0.0;
+        // top = 0 dB (prop 1), bottom = 0 (prop 0)
+        const int yPix = r.getBottom() - (int)std::round(prop * r.getHeight());
+        return (float) juce::jlimit(r.getY(), r.getBottom(), yPix);
+    }
+
+    double yToValue(const juce::Slider& s, float y) const
+    {
+        auto r = dragTrack;
+        y = juce::jlimit((float)r.getY(), (float)r.getBottom(), y);
+        auto range = s.getRange();
+        const double prop = juce::jlimit(0.0, 1.0, (double)(r.getBottom() - y) / (double)r.getHeight());
+        return range.getStart() + prop * range.getLength();
+    }
+
+    void updateHandlePositions()
+    {
+        const int hw = 56; const int hh = 28; // handle size
+        const int cx = dragTrack.getCentreX();
+        auto yl = (int)std::round(valueToY(sliderL)) - hh / 2;
+        auto yr = (int)std::round(valueToY(sliderR)) - hh / 2;
+        handleBoth.setBounds(cx - hw / 2, yl, hw, hh);
+        // individual handles centered over each slider column
+        handleL.setBounds(sliderL.getX() + sliderL.getWidth()/2 - hw/2, yl, hw, hh);
+        handleR.setBounds(sliderR.getX() + sliderR.getWidth()/2 - hw/2, yr, hw, hh);
+        repaint();
+    }
+
+    void onHandleDrag(DraggableHandle::Mode mode, float y)
+    {
+        if (mode == DraggableHandle::Mode::Both)
+        {
+            auto v = yToValue(sliderL, y);
+            sliderL.setValue(v, juce::sendNotificationSync);
+            sliderR.setValue(v, juce::sendNotificationSync);
+        }
+        else if (mode == DraggableHandle::Mode::Left)
+        {
+            sliderL.setValue(yToValue(sliderL, y), juce::sendNotificationSync);
+        }
+        else
+        {
+            sliderR.setValue(yToValue(sliderR, y), juce::sendNotificationSync);
+        }
+        updateHandlePositions();
+    }
+
     APVTS& apvts;
 
     // live meter state (normalized 0..1; 1 = 0 dBFS)
@@ -181,6 +272,14 @@ private:
     juce::Slider sliderL, sliderR;
     juce::Label  labelL, labelR;
     juce::ToggleButton linkButton { "Link" };
+
+    // Drag handles and track area
+    juce::Rectangle<int> dragTrack;
+    DraggableHandle handleBoth { *this, DraggableHandle::Mode::Both };
+    DraggableHandle handleL    { *this, DraggableHandle::Mode::Left };
+    DraggableHandle handleR    { *this, DraggableHandle::Mode::Right };
+
+    friend class DraggableHandle;
 
     std::unique_ptr<APVTS::SliderAttachment>  attL, attR;
     std::unique_ptr<APVTS::ButtonAttachment>  attLink;
