@@ -82,6 +82,12 @@ public:
         sliderR.setLookAndFeel(lnf);
     }
 
+    // Update the text below sliders (e.g., real-time level readouts)
+    void setBottomTexts(const juce::String& left, const juce::String& right) {
+        labelL.setText(left, juce::dontSendNotification);
+        labelR.setText(right, juce::dontSendNotification);
+    }
+
     void resized() override {
         // 2 columns (L/R), 4 rows: Title, Labels, Sliders, Link
         juce::Grid g; using Track = juce::Grid::TrackInfo;
@@ -128,12 +134,44 @@ public:
                                                   .withJustifySelf(juce::GridItem::JustifySelf::end)
                                                   .withAlignSelf(juce::GridItem::AlignSelf::center);
 
-        g.items = { titleItem, ll, lr, sl, sr, linkItem };
+        g.items = { titleItem, sl, sr, ll, lr, linkItem };
         g.performLayout(getLocalBounds());
+    }
+
+    // Live meter overlay (normalized 0..1, where 1 = 0 dBFS).
+    void setMeterDbFs(float leftDb, float rightDb)
+    {
+        auto norm = [](float db){ return juce::jlimit(0.0f, 1.0f, (db + 60.0f) / 60.0f); };
+        meterL = norm(leftDb);
+        meterR = norm(rightDb);
+        repaint();
+    }
+
+    void paintOverChildren(juce::Graphics& g) override
+    {
+        // Draw translucent fills inside each slider's bounds to indicate live level
+        auto drawIn = [&](const juce::Rectangle<int>& r, float norm)
+        {
+            if (r.isEmpty() || norm <= 0.001f) return;
+            auto rf = r.toFloat().reduced(2.0f);
+            const float radius = rf.getWidth() * 0.5f;
+            const float h = rf.getHeight() * juce::jlimit(0.0f, 1.0f, norm);
+            juce::Rectangle<float> fill = rf.withY(rf.getBottom() - h).withHeight(h);
+            juce::Colour c = juce::Colours::aqua.withAlpha(0.22f);
+            g.setColour(c);
+            g.fillRoundedRectangle(fill, radius);
+        };
+
+        drawIn(sliderL.getBounds(), meterL);
+        drawIn(sliderR.getBounds(), meterR);
     }
 
 private:
     APVTS& apvts;
+
+    // live meter state (normalized 0..1; 1 = 0 dBFS)
+    float meterL { 0.0f };
+    float meterR { 0.0f };
 
     juce::Label  title;
     juce::Slider sliderL, sliderR;

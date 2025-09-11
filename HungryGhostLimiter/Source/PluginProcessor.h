@@ -56,6 +56,8 @@ public:
 
     // exposed to editor (gain-reduction, dB, >= 0). UI applies smoothing.
     float getSmoothedAttenDb() const { return attenDbRaw.load(); }
+    float getOutDbL() const { return outDbRaw[0].load(); }
+    float getOutDbR() const { return outDbRaw[1].load(); }
 
 private:
     // ========= Parameters we read every block =========
@@ -65,6 +67,9 @@ private:
 
     // --- metering (host-rate): raw dB reduction (smoothed in UI component) ---
     std::atomic<float> attenDbRaw { 0.0f }; // 0..24 dB
+
+    // --- metering (host-rate): output peak dBFS per channel (UI smooths) ---
+    std::atomic<float> outDbRaw[2] { -60.0f, -60.0f }; // dBFS, clamp [-60, 0]
 
     // ========= Oversampling =========
     std::unique_ptr<juce::dsp::Oversampling<float>> oversampler; // built in prepare

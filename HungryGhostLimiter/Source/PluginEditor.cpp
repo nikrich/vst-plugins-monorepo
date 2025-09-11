@@ -9,12 +9,13 @@ HungryGhostLimiterAudioProcessorEditor::HungryGhostLimiterAudioProcessorEditor(H
     , ceiling(proc.apvts)
     , controlsCol(proc.apvts, &donutLNF, &pillLNF, &neonToggleLNF)
     , meterCol()
+    , outputCol(proc.apvts)
     , advanced(proc.apvts)
 {
     setLookAndFeel(&lnf);
     setResizable(false, false);
     setOpaque(true);
-    setSize(900, 640);
+    setSize(Layout::kTotalColsWidthPx + 2 * Layout::kPaddingPx, 640);
 
     // Sections visible
     addAndMakeVisible(logoHeader);
@@ -24,7 +25,7 @@ HungryGhostLimiterAudioProcessorEditor::HungryGhostLimiterAudioProcessorEditor(H
     inputsCol.setSliderLookAndFeel(&pillLNF);
     threshold.setSliderLookAndFeel(&pillLNF);
     ceiling.setSliderLookAndFeel(&pillLNF);
-
+    outputCol.setSliderLookAndFeel(&pillLNF);
     addAndMakeVisible(inputsCol);
     addAndMakeVisible(threshold);
     addAndMakeVisible(ceiling);
@@ -110,4 +111,6 @@ void HungryGhostLimiterAudioProcessorEditor::resized()
 void HungryGhostLimiterAudioProcessorEditor::timerCallback()
 {
     meterCol.setDb(proc.getSmoothedAttenDb()); // feed raw or lightly-smoothed dB
+    // Update output live levels (dBFS) -> Output column smooths and displays
+    outputCol.setLevelsDbFs(proc.getOutDbL(), proc.getOutDbR());
 }

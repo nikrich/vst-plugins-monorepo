@@ -2,7 +2,6 @@
 #include <juce_gui_extra/juce_gui_extra.h>
 #include "../Controls.h"
 #include "../ReleaseSection.h"
-#include "../AdvancedPanel.h"
 #include "../Layout.h"
 #include "../../PluginProcessor.h"
 
@@ -10,7 +9,6 @@
 //  1) Release (rotary + Auto toggle)
 //  2) LookAhead (vertical bar)
 //  3) Two toggles (SC HPF, SAFETY)
-//  4) Collapsible Advanced panel
 class ControlsColumn : public juce::Component {
 public:
     ControlsColumn(HungryGhostLimiterAudioProcessor::APVTS& apvts,
@@ -19,8 +17,7 @@ public:
                    juce::LookAndFeel* neonToggleLNF)
         : apvts(apvts),
           releaseSec(apvts),
-          lookAhead("LOOK-AHEAD"),
-          advanced(apvts)
+          lookAhead("LOOK-AHEAD")
     {
         // Look & Feel
         if (donutKnobLNF) releaseSec.setKnobLookAndFeel(donutKnobLNF);
@@ -40,19 +37,6 @@ public:
         addAndMakeVisible(toggleRow);
         toggleRow.addAndMakeVisible(scHpfToggle);
         toggleRow.addAndMakeVisible(safetyToggle);
-
-        // Advanced toggle + panel
-        advancedToggle.setButtonText("Advanced ▸");
-        advancedToggle.onClick = [this]
-        {
-            advancedOpen = !advancedOpen;
-            advanced.setVisible(advancedOpen);
-            advancedToggle.setButtonText(advancedOpen ? "Advanced ▾" : "Advanced ▸");
-            resized();
-        };
-        addAndMakeVisible(advancedToggle);
-        advanced.setVisible(false);
-        addAndMakeVisible(advanced);
 
         // Attachments
         laAttach = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(apvts, "lookAheadMs", lookAhead.slider);
@@ -93,19 +77,6 @@ public:
         row(releaseSec, Layout::kReleaseRowHeightPx);
         row(lookAhead,  Layout::kLookAheadRowHeightPx);
         row(toggleRow,  Layout::kTogglesRowHeightPx);
-        
-        // Advanced toggle (small row)
-        fb.items.add(juce::FlexItem(advancedToggle)
-            .withHeight(24.0f)
-            .withMargin({ (float)Layout::kCellMarginPx, (float)Layout::kCellMarginPx, (float)(advancedOpen ? Layout::kRowGapPx : Layout::kCellMarginPx), (float)Layout::kCellMarginPx }));
-
-        if (advancedOpen)
-        {
-            fb.items.add(juce::FlexItem(advanced)
-                .withHeight((float)Layout::kAdvancedRowHeightPx)
-                .withMargin({ 0, (float)Layout::kCellMarginPx, (float)Layout::kCellMarginPx, (float)Layout::kCellMarginPx }));
-        }
-
         // spacer to push content to top
         fb.items.add(juce::FlexItem().withFlex(1.0f));
 
@@ -129,11 +100,6 @@ private:
     juce::Component toggleRow;
     juce::ToggleButton scHpfToggle{ "SC HPF" };
     juce::ToggleButton safetyToggle{ "SAFETY" };
-
-    // Collapsible advanced
-    bool advancedOpen { false };
-    juce::TextButton advancedToggle { "Advanced ▸" };
-    AdvancedPanel advanced;
 
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> laAttach;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> hpfAttach;
