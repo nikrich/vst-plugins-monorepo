@@ -8,9 +8,11 @@
 #include "ui/Ceiling.h"
 #include "ui/Layout.h"
 #include "ui/columns/InputsColumn.h"
-#include "ui/columns/ThrCeilColumn.h"
 #include "ui/columns/ControlsColumn.h"
 #include "ui/columns/MeterColumn.h"
+#include "ui/columns/OutputColumn.h"
+#include "ui/sections/LogoHeader.h"
+#include "ui/sections/AdvancedControls.h"
 #include "BinaryData.h"
 #include "styling/Theme.h"
 class HungryGhostLimiterAudioProcessorEditor
@@ -33,15 +35,17 @@ private:
     DonutKnobLNF   donutLNF;
     NeonToggleLNF  neonToggleLNF;
 
-    juce::Label title;
-    juce::ImageComponent logoComp;   // centered logo at the top
-    juce::Label          logoSub;    // optional "LIMITER" text under the logo
+    // Sections
+    LogoHeader       logoHeader;
+    AdvancedControls advanced;
 
     // Columns
     InputsColumn    inputsCol;
-    ThrCeilColumn   thrCeilCol;
+    StereoThreshold threshold;
+    StereoCeiling   ceiling;
     ControlsColumn  controlsCol;
     MeterColumn     meterCol;
+    OutputColumn    outputCol;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(HungryGhostLimiterAudioProcessorEditor)
 };
