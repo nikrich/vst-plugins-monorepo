@@ -15,7 +15,7 @@ HungryGhostLimiterAudioProcessorEditor::HungryGhostLimiterAudioProcessorEditor(H
     setLookAndFeel(&lnf);
     setResizable(false, false);
     setOpaque(true);
-    setSize(Layout::kTotalColsWidthPx + 2 * Layout::kPaddingPx, 640);
+    setSize(Layout::kTotalColsWidthPx + 2 * Layout::kPaddingPx, 760);
 
     // Sections visible
     addAndMakeVisible(logoHeader);

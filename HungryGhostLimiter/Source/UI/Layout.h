@@ -38,7 +38,7 @@ inline constexpr int kMeterHeightPx          = 320; // fits 760x460 content heig
 inline constexpr int kColWidthOutputPx       = 100;
 
 // Footer / advanced controls
-inline constexpr int kFooterHeightPx         = 120;
+inline constexpr int kFooterHeightPx         = 200;
 
 inline constexpr int kTotalColsWidthPx =
     kColWidthInputsPx + kColWidthThresholdPx + kColWidthCeilingPx + kColWidthControlPx + kColWidthMeterPx + kColWidthOutputPx

@@ -24,8 +24,9 @@ public:
         }
 
         // Quantize buttons
-        for (auto* b : { &q24, &q20, &q16, &q12, &q8 }) { addAndMakeVisible(*b); }
+        for (auto* b : { &q24, &q20, &q16, &q12, &q8, &qNone }) { addAndMakeVisible(*b); b->setLookAndFeel(&squareLNF); }
         q24.setButtonText("24"); q20.setButtonText("20"); q16.setButtonText("16"); q12.setButtonText("12"); q8.setButtonText("8");
+        qNone.setButtonText("-"); qNone.setEnabled(false);
 
         // Dither
         for (auto* b : { &dT1, &dT2 }) { addAndMakeVisible(*b); }
@@ -143,18 +144,67 @@ public:
             }
         };
 
-        layoutGroup(qCard = q, qLabel, { &q24, &q20, &q16, &q12, &q8 });
+        // Quantize as 3x2 grid per provided design
+        auto layoutQuantize = [&](juce::Rectangle<int> box)
+        {
+            auto inner = box.reduced(12);
+            qLabel.setBounds(inner.removeFromTop(28));
+            inner.removeFromTop(8);
+
+            const int cols = 3, rows = 2;
+            const int gapX = 16, gapY = 16;
+
+            // Square based on available width (height will be ensured by overall plugin height)
+            const int bw = (inner.getWidth() - (cols - 1) * gapX) / cols;
+            const int bh = bw; // square
+            auto grid = inner.withHeight(rows * bh + (rows - 1) * gapY)
+                             .withY(inner.getY());
+
+            auto place = [&](int c, int r){
+                int x = grid.getX() + c * (bw + gapX);
+                int y = grid.getY() + r * (bh + gapY);
+                return juce::Rectangle<int>(x, y, bw, bh);
+            };
+
+            q24.setBounds(place(0,0));
+            q20.setBounds(place(1,0));
+            q16.setBounds(place(2,0));
+            q12.setBounds(place(0,1));
+            q8 .setBounds(place(1,1));
+            qNone.setBounds(place(2,1));
+        };
+
+        layoutQuantize(qCard = q);
         layoutGroup(dCard = d, dLabel, { &dT1, &dT2 });
         layoutGroup(sCard = s, sLabel, { &sNone, &sArc });
         layoutGroup(mCard = m, domLabel, { &domDigital, &domAnalog, &domTruePeak });
     }
 
 private:
+    // Small square toggle L&F for card buttons
+    struct SquareToggleLNF : public juce::LookAndFeel_V4 {
+        void drawToggleButton(juce::Graphics& g, juce::ToggleButton& b,
+                              bool /*highlighted*/, bool /*down*/) override
+        {
+            auto r = b.getLocalBounds().reduced(4).toFloat();
+            const float radius = 6.0f;
+            auto bg = b.getToggleState() ? juce::Colours::white.withAlpha(0.20f)
+                                         : juce::Colours::transparentBlack;
+            g.setColour(bg);
+            g.fillRoundedRectangle(r, radius);
+            g.setColour(juce::Colours::black);
+            g.drawRoundedRectangle(r, radius, 3.0f);
+            g.setColour(juce::Colours::black);
+            g.setFont(juce::Font(juce::FontOptions(18.0f)));
+            g.drawFittedText(b.getButtonText(), b.getLocalBounds(), juce::Justification::centred, 1);
+        }
+    } squareLNF;
+
     // Card rectangles for painting
     juce::Rectangle<int> qCard, dCard, sCard, mCard;
 
     juce::Label qLabel, dLabel, sLabel, domLabel;
-    juce::ToggleButton q24, q20, q16, q12, q8;
+    juce::ToggleButton q24, q20, q16, q12, q8, qNone;
     juce::ToggleButton dT1, dT2;
     juce::ToggleButton sNone, sArc;
     juce::ToggleButton domDigital, domAnalog, domTruePeak;
