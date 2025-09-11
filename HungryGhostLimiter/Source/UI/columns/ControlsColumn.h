@@ -21,6 +21,7 @@ public:
     {
         // Look & Feel
         if (donutKnobLNF) releaseSec.setKnobLookAndFeel(donutKnobLNF);
+        if (neonToggleLNF) releaseSec.setAutoToggleLookAndFeel(neonToggleLNF);
         if (pillVSliderLNF) lookAhead.setSliderLookAndFeel(pillVSliderLNF);
         if (neonToggleLNF) {
             scHpfToggle.setLookAndFeel(neonToggleLNF);

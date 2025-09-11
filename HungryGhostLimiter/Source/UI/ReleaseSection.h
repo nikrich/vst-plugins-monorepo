@@ -27,6 +27,7 @@ public:
     }
 
     void setKnobLookAndFeel(juce::LookAndFeel* lnf) { release.setLookAndFeel(lnf); }
+    void setAutoToggleLookAndFeel(juce::LookAndFeel* lnf) { autoBtn.setLookAndFeel(lnf); }
 
     void resized() override
     {

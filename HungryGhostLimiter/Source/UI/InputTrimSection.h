@@ -17,6 +17,11 @@ public:
         bars.setSliderLookAndFeel(lnf);
     }
 
+    void setLinkLookAndFeel(juce::LookAndFeel* lnf)
+    {
+        bars.setLinkLookAndFeel(lnf);
+    }
+
     void resized() override
     {
         bars.setBounds(getLocalBounds());

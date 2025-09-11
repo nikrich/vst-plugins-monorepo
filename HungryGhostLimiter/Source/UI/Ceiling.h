@@ -14,6 +14,7 @@ public:
 
     void resized() override { bars.setBounds(getLocalBounds()); }
     void setSliderLookAndFeel(juce::LookAndFeel* lnf) { bars.setSliderLookAndFeel(lnf); }
+    void setLinkLookAndFeel(juce::LookAndFeel* lnf) { bars.setLinkLookAndFeel(lnf); }
 
 private:
     StereoLinkedBars bars;

@@ -66,6 +66,33 @@ struct NeonToggleLNF : juce::LookAndFeel_V4
     }
 };
 
+// Global square checkbox / radio look used across advanced cards
+struct SquareToggleLNF : juce::LookAndFeel_V4
+{
+    float border = 3.0f;
+    float corner = 8.0f;
+
+    void drawToggleButton(juce::Graphics& g, juce::ToggleButton& b,
+                          bool /*highlighted*/, bool /*down*/) override
+    {
+        auto r = b.getLocalBounds().reduced(4).toFloat();
+        // Make the content area square if this is a bare checkbox (not list-style)
+        auto side = juce::jmin(r.getWidth(), r.getHeight());
+        r = juce::Rectangle<float>(side, side).withCentre(r.getCentre());
+
+        auto bg = b.getToggleState() ? juce::Colours::white.withAlpha(0.20f)
+                                     : juce::Colours::transparentBlack;
+        g.setColour(bg);
+        g.fillRoundedRectangle(r, corner);
+        g.setColour(juce::Colours::black);
+        g.drawRoundedRectangle(r, corner, border);
+
+        g.setColour(juce::Colours::black);
+        g.setFont(juce::Font(juce::FontOptions(18.0f)));
+        g.drawFittedText(b.getButtonText(), b.getLocalBounds(), juce::Justification::centred, 1);
+    }
+};
+
 // Donut gradient rotary knob (dark UI, orange→red progress)
 struct DonutKnobLNF : juce::LookAndFeel_V4
 {

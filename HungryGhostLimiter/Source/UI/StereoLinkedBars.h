@@ -82,6 +82,10 @@ public:
         sliderR.setLookAndFeel(lnf);
     }
 
+    void setLinkLookAndFeel(juce::LookAndFeel* lnf) {
+        linkButton.setLookAndFeel(lnf);
+    }
+
     // Update the text below sliders (e.g., real-time level readouts)
     void setBottomTexts(const juce::String& left, const juce::String& right) {
         labelL.setText(left, juce::dontSendNotification);

@@ -25,6 +25,11 @@ HungryGhostLimiterAudioProcessorEditor::HungryGhostLimiterAudioProcessorEditor(H
     inputsCol.setSliderLookAndFeel(&pillLNF);
     threshold.setSliderLookAndFeel(&pillLNF);
     ceiling.setSliderLookAndFeel(&pillLNF);
+
+    // Apply neon toggle style to link buttons
+    inputsCol.getInput().setLinkLookAndFeel(&neonToggleLNF);
+    threshold.setLinkLookAndFeel(&neonToggleLNF);
+    ceiling.setLinkLookAndFeel(&neonToggleLNF);
     outputCol.setSliderLookAndFeel(&pillLNF);
     addAndMakeVisible(inputsCol);
     addAndMakeVisible(threshold);
