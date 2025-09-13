@@ -21,19 +21,109 @@ struct PillVSliderLNF : juce::LookAndFeel_V4
         juce::Slider& s) override;
 };
 
-// Neon / pill toggle for dark UI
+// Neon / pill toggle for dark UI (now supports image skin from kit-06/button)
 struct NeonToggleLNF : juce::LookAndFeel_V4
 {
     float radius = 10.0f;
+
+    juce::Image btnOff;
+    juce::Image btnOn;
+
+    NeonToggleLNF()
+    {
+        auto tryLoadExact = [](const char* name) -> juce::Image
+        {
+            int sz = 0; if (const void* data = BinaryData::getNamedResource(name, sz))
+                return juce::ImageFileFormat::loadFrom(data, (size_t)sz);
+            return {};
+        };
+
+        // Attempt common symbolizations first (JUCE prefixes identifiers that start with digits with an underscore)
+        btnOff = tryLoadExact("_001_png");
+        btnOn  = tryLoadExact("_002_png");
+        if (!(btnOff.isValid() && btnOn.isValid())) { btnOff = tryLoadExact("001_png"); btnOn = tryLoadExact("002_png"); }
+
+        // If not found, scan BinaryData for original filenames matching kit-06/button/001.png and 002.png
+        if (!(btnOff.isValid() && btnOn.isValid()))
+        {
+            for (int i = 0; i < BinaryData::namedResourceListSize; ++i)
+            {
+                if (auto* resName = BinaryData::namedResourceList[i])
+                {
+                    if (auto* orig = BinaryData::getNamedResourceOriginalFilename(resName))
+                    {
+                        juce::String sOrig(orig);
+                        auto loadRes = [&](juce::Image& dst)
+                        {
+                            int sz = 0;
+                            if (const void* data = BinaryData::getNamedResource(resName, sz))
+                                dst = juce::ImageFileFormat::loadFrom(data, (size_t)sz);
+                        };
+
+                        // Match off state
+                        if (!btnOff.isValid())
+                        {
+                            if (sOrig.endsWithIgnoreCase("assets/ui/kit-06/button/001.png") ||
+                                (sOrig.endsWithIgnoreCase("001.png") && sOrig.containsIgnoreCase("kit-06/button")))
+                            {
+                                loadRes(btnOff);
+                                continue;
+                            }
+                        }
+                        // Match on state
+                        if (!btnOn.isValid())
+                        {
+                            if (sOrig.endsWithIgnoreCase("assets/ui/kit-06/button/002.png") ||
+                                (sOrig.endsWithIgnoreCase("002.png") && sOrig.containsIgnoreCase("kit-06/button")))
+                            {
+                                loadRes(btnOn);
+                                continue;
+                            }
+                        }
+
+                        if (btnOff.isValid() && btnOn.isValid()) break;
+                    }
+                }
+            }
+        }
+    }
 
     void drawToggleButton(juce::Graphics& g, juce::ToggleButton& b,
         bool shouldHighlight, bool shouldDown) override
     {
         auto r = b.getLocalBounds().toFloat();
 
+        // If we have skinned images, draw those; else fallback to pill style
+        if (btnOff.isValid() && btnOn.isValid())
+        {
+            const juce::Image& img = b.getToggleState() ? btnOn : btnOff;
+
+            // Maintain aspect ratio and fit within bounds
+            const float iw = (float) img.getWidth();
+            const float ih = (float) img.getHeight();
+            const float sx = r.getWidth()  / iw;
+            const float sy = r.getHeight() / ih;
+            const float scale = juce::jmin(sx, sy);
+            const float dw = iw * scale;
+            const float dh = ih * scale;
+            const float dx = r.getX() + (r.getWidth()  - dw) * 0.5f;
+            const float dy = r.getY() + (r.getHeight() - dh) * 0.5f;
+
+            g.drawImage(img, (int)dx, (int)dy, (int)dw, (int)dh, 0, 0, (int)iw, (int)ih);
+
+            // Subtle hover/press overlay
+            if (shouldHighlight || shouldDown)
+                g.setColour(juce::Colours::white.withAlpha(0.06f)), g.fillRect(b.getLocalBounds());
+
+            // Skip drawing default text when skinned
+            return;
+        }
+
+        // Fallback: original neon pill style
         // Layout: pill switch at top, label below
-        const float pillH = juce::jlimit(20.0f, 28.0f, r.getHeight());
-        auto pill = r.removeFromTop(pillH);
+        auto rr = r;
+        const float pillH = juce::jlimit(20.0f, 28.0f, rr.getHeight());
+        auto pill = rr.removeFromTop(pillH);
         pill = pill.reduced(2.0f);
         const float rad = pill.getHeight() * 0.5f;
 
@@ -58,7 +148,7 @@ struct NeonToggleLNF : juce::LookAndFeel_V4
         g.fillEllipse(knob);
 
         // label
-        auto labelArea = r.reduced(2.0f);
+        auto labelArea = rr.reduced(2.0f);
         g.setColour(Style::theme().text);
         g.setFont(juce::Font(juce::FontOptions(12.0f, juce::Font::plain)));
         g.drawFittedText(b.getButtonText(), labelArea.toNearestInt(), juce::Justification::centred, 1);
@@ -155,8 +245,8 @@ struct DonutKnobLNF : juce::LookAndFeel_V4
         auto centre = r.getCentre();
         auto radius = diam * 0.5f;
 
-        // Thinner ring: compute thickness as a fraction of radius
-        const float ringThickness = juce::jlimit(2.0f, radius * 0.18f, radius * 0.22f); // ~18–22% of radius
+        // Fixed ultra-thin ring width (2 px)
+        const float ringThickness = 2.0f;
         const float inner = radius - ringThickness;
 
         const float angle = startAngle + pos * (endAngle - startAngle);
@@ -169,13 +259,31 @@ struct DonutKnobLNF : juce::LookAndFeel_V4
         g.setGradientFill(trackGrad);
         g.strokePath(bg, stroke);
 
-        // Purple glow behind the value ring
+        // Stronger outward halo behind the value ring with smooth fade (Option A)
         {
-            juce::Path glow; glow.addCentredArc(centre.x, centre.y, radius, radius, 0.0f, startAngle, angle, true);
-            juce::Colour glowCol = juce::Colour(0xFFC084FC).withAlpha(0.35f); // soft purple glow
-            juce::PathStrokeType glowStroke(ringThickness * 2.2f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded);
-            g.setColour(glowCol);
-            g.strokePath(glow, glowStroke);
+            juce::Path valueArc; valueArc.addCentredArc(centre.x, centre.y, radius, radius, 0.0f, startAngle, angle, true);
+
+            const float ringOuterRadius = radius + ringThickness * 0.5f; // outer edge of stroked ring
+            const float haloExtent = juce::jmax(12.0f, ringThickness * 10.0f);
+
+            juce::Path haloClipOuter; haloClipOuter.addEllipse(centre.x - (ringOuterRadius + haloExtent), centre.y - (ringOuterRadius + haloExtent),
+                                                               2.0f * (ringOuterRadius + haloExtent), 2.0f * (ringOuterRadius + haloExtent));
+            juce::Path haloClipInner; haloClipInner.addEllipse(centre.x - ringOuterRadius, centre.y - ringOuterRadius,
+                                                               2.0f * ringOuterRadius, 2.0f * ringOuterRadius);
+            juce::Path outwardOnlyClip = haloClipOuter; outwardOnlyClip.addPath(haloClipInner, juce::AffineTransform::rotation(juce::MathConstants<float>::pi, centre.x, centre.y));
+
+            juce::Graphics::ScopedSaveState save(g);
+            g.reduceClipRegion(outwardOnlyClip);
+
+            const float haloThicknesses[] = { ringThickness * 3.0f, ringThickness * 6.0f, ringThickness * 10.0f };
+            const float haloAlphas[]      = { 0.40f,                 0.20f,                 0.08f };
+
+            for (int i = 0; i < 3; ++i)
+            {
+                juce::PathStrokeType haloStroke(haloThicknesses[i], juce::PathStrokeType::curved, juce::PathStrokeType::rounded);
+                g.setColour(juce::Colour(0xFFC084FC).withAlpha(haloAlphas[i])); // same hue as ring, stronger glow with fade
+                g.strokePath(valueArc, haloStroke);
+            }
         }
 
         // value ring (purple accent)

@@ -19,7 +19,7 @@ inline constexpr int kColWidthControlPx      = 260;
 inline constexpr int kColWidthMeterPx        = 80;
 
 // Third column (controls) row heights
-inline constexpr int kReleaseRowHeightPx     = 280;
+inline constexpr int kReleaseRowHeightPx     = 240; // was 260; made smaller again
 inline constexpr int kLookAheadRowHeightPx   = 140;
 inline constexpr int kTogglesRowHeightPx     = 36;
 inline constexpr int kAdvancedRowHeightPx    = 120; // placeholder panel height
