@@ -27,6 +27,8 @@ juce_add_binary_data(HGLBinaryData
         ${ASSETS_DIR}/ui/slider/slider-knob.png
         "${ASSETS_DIR}/ui/kit-03/middle knob/mk-final.png"
         "${ASSETS_DIR}/ui/kit-03/background/background-03.png"
+        "${ASSETS_DIR}/ui/kit-03/big knob/sb-final.png"
+        "${ASSETS_DIR}/ui/kit-03/slider/sl-final.png"
         ${ASSETS_DIR}/fonts/Montserrat/Montserrat-Italic-VariableFont_wght.ttf
         ${ASSETS_DIR}/fonts/Montserrat/Montserrat-VariableFont_wght.ttf
 )

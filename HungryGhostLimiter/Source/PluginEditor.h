@@ -12,7 +12,7 @@
 #include "ui/columns/MeterColumn.h"
 #include "ui/columns/OutputColumn.h"
 #include "ui/sections/LogoHeader.h"
-#include "UI/AdvancedPanel.h"
+#include "ui/AdvancedPanel.h"
 #include <BinaryData.h>
 #include "styling/Theme.h"
 class HungryGhostLimiterAudioProcessorEditor

@@ -1,0 +1,1 @@
+#include "KitStripSlider.h"

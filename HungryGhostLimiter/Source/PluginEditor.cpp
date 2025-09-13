@@ -105,9 +105,12 @@ void HungryGhostLimiterAudioProcessorEditor::paint(juce::Graphics& g)
         g.fillRoundedRectangle(mainCard.toFloat(), radius);
     }
 
-    // Border
-    g.setColour(juce::Colours::white.withAlpha(0.12f));
-    g.drawRoundedRectangle(mainCard.toFloat(), radius, bw);
+    // Border: only draw when using fallback colour, not when image background is active
+    if (!bgCardImage.isValid())
+    {
+        g.setColour(juce::Colours::white.withAlpha(0.12f));
+        g.drawRoundedRectangle(mainCard.toFloat(), radius, bw);
+    }
 }
 
 void HungryGhostLimiterAudioProcessorEditor::resized()

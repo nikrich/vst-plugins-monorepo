@@ -4,6 +4,7 @@
 #include "../PluginProcessor.h"
 #include "../styling/Theme.h"
 #include <BinaryData.h>
+#include "KitStripSlider.h"
 
 // Reusable stereo linked vertical bars (L/R) with a title and Link toggle.
 // Parameter IDs are provided at construction.
@@ -16,9 +17,11 @@ public:
         DraggableHandle(StereoLinkedBars& owner, Mode m) : parent(owner), mode(m) { setRepaintsOnMouseActivity(true); setMouseCursor(juce::MouseCursor::UpDownResizeCursor); }
         void paint(juce::Graphics& g) override {
             auto r = getLocalBounds().toFloat();
-            // load slider knob image once
-            static juce::Image knobImg;
-            if (!knobImg.isValid())
+
+            // Load UI kit 03 slider filmstrip (sl-final.png) once
+            static juce::Image strip;
+            static int frames = 0; static bool vertical = true; static int frameSize = 0;
+            if (!strip.isValid())
             {
                 auto tryNamed = [](const char* name) -> juce::Image
                 {
@@ -26,16 +29,39 @@ public:
                         return juce::ImageFileFormat::loadFrom(data, (size_t)sz);
                     return {};
                 };
-                knobImg = tryNamed("sliderknob_png");
-                if (!knobImg.isValid()) knobImg = tryNamed("slider_knob_png");
-                if (!knobImg.isValid()) knobImg = tryNamed("slider-knob.png");
+                strip = tryNamed("slfinal_png");
+                if (!strip.isValid()) strip = tryNamed("sl-final.png");
+
+                if (strip.isValid())
+                {
+                    const int w = strip.getWidth();
+                    const int h = strip.getHeight();
+                    if (w > 0 && h % w == 0) { vertical = true; frameSize = w; frames = h / w; }
+                    else if (h > 0 && w % h == 0) { vertical = false; frameSize = h; frames = w / h; }
+                    else { frameSize = juce::jmin(w, h); frames = frameSize > 0 ? (vertical ? h / frameSize : w / frameSize) : 1; }
+                    if (frames <= 1) frames = 128; // default
+                }
             }
 
-            if (knobImg.isValid())
+            if (strip.isValid() && frames > 1 && frameSize > 0)
             {
-                g.drawImageWithin(knobImg,
-                                  (int)r.getX(), (int)r.getY(), (int)r.getWidth(), (int)r.getHeight(),
-                                  juce::RectanglePlacement::centred);
+                // Choose source slider based on handle mode (Both uses left)
+                const juce::Slider& s = (mode == Mode::Right ? parent.sliderR : parent.sliderL);
+                const auto range = s.getRange();
+                const double prop = range.getLength() > 0.0 ? (s.getValue() - range.getStart()) / range.getLength() : 0.0;
+                const int idx = juce::jlimit(0, frames - 1, (int)std::round(prop * (frames - 1)));
+                const int sx = vertical ? 0 : idx * frameSize;
+                const int sy = vertical ? idx * frameSize : 0;
+
+                // Preserve frame aspect inside handle bounds (contain)
+                const float scale = juce::jmin(r.getWidth() / (float)frameSize, r.getHeight() / (float)frameSize);
+                const float dw = frameSize * scale;
+                const float dh = frameSize * scale;
+                const float dx = r.getX() + (r.getWidth() - dw) * 0.5f;
+                const float dy = r.getY() + (r.getHeight() - dh) * 0.5f;
+                g.drawImage(strip,
+                            (int)dx, (int)dy, (int)dw, (int)dh,
+                            sx, sy, frameSize, frameSize);
             }
             else
             {
@@ -83,18 +109,24 @@ public:
         initSlider(sliderL);
         initSlider(sliderR);
         addAndMakeVisible(sliderL);
+        addAndMakeVisible(sliderM);
         addAndMakeVisible(sliderR);
 
         // Labels
         labelL.setText("L", juce::dontSendNotification);
+        labelM.setText("M", juce::dontSendNotification);
         labelR.setText("R", juce::dontSendNotification);
         labelL.setJustificationType(juce::Justification::centred);
+        labelM.setJustificationType(juce::Justification::centred);
         labelR.setJustificationType(juce::Justification::centred);
         labelL.setInterceptsMouseClicks(false, false);
+        labelM.setInterceptsMouseClicks(false, false);
         labelR.setInterceptsMouseClicks(false, false);
         labelL.setFont(juce::Font(juce::FontOptions(12.0f, juce::Font::plain)));
+        labelM.setFont(juce::Font(juce::FontOptions(12.0f, juce::Font::plain)));
         labelR.setFont(juce::Font(juce::FontOptions(12.0f, juce::Font::plain)));
         addAndMakeVisible(labelL);
+        addAndMakeVisible(labelM);
         addAndMakeVisible(labelR);
 
         // Link toggle
@@ -110,23 +142,24 @@ public:
         attR = std::make_unique<APVTS::SliderAttachment>(apvts, paramRId, sliderR);
         attLink = std::make_unique<APVTS::ButtonAttachment>(apvts, linkId, linkButton);
 
-        // Link mirroring
-        auto mirror = [this](juce::Slider* src, juce::Slider* dst) {
-            if (syncing || !linkButton.getToggleState()) return;
-            syncing = true;
-            dst->setValue(src->getValue(), juce::sendNotificationSync);
-            syncing = false;
-        };
-        sliderL.onValueChange = [=] { mirror(&sliderL, &sliderR); };
-        sliderR.onValueChange = [=] { mirror(&sliderR, &sliderL); };
-        linkButton.onClick = [this] {
-            if (linkButton.getToggleState()) {
-                syncing = true;
-                sliderR.setValue(sliderL.getValue(), juce::sendNotificationSync);
-                syncing = false;
-            }
-            updateHandlesVisibility();
-            updateHandlePositions();
+        // Linked functionality disabled for now
+        sliderL.onValueChange = nullptr;
+        sliderR.onValueChange = nullptr;
+        linkButton.setVisible(false);
+
+        // Middle filmstrip slider acts as a master: dragging it updates L and R
+        // Match the range to L (both L and R share the same parameter range)
+        {
+            auto r = sliderL.getRange();
+            sliderM.getSlider().setRange(r, sliderL.getInterval());
+            sliderM.getSlider().setSkewFactor(sliderL.getSkewFactor());
+            sliderM.getSlider().setValue((sliderL.getValue() + sliderR.getValue()) * 0.5, juce::dontSendNotification);
+        }
+        sliderM.getSlider().onValueChange = [this]
+        {
+            const auto v = sliderM.getSlider().getValue();
+            sliderL.setValue(v, juce::sendNotificationSync);
+            sliderR.setValue(v, juce::sendNotificationSync);
         };
     }
 
@@ -146,14 +179,13 @@ public:
     }
 
     void resized() override {
-        // 2 columns (L/R), 4 rows: Title, Labels, Sliders, Link
+        // 3 columns (L/M/R), 3 rows: Title, Sliders, Labels
         juce::Grid g; using Track = juce::Grid::TrackInfo;
-        g.templateColumns = { Track(juce::Grid::Fr(1)), Track(juce::Grid::Fr(1)) };
+        g.templateColumns = { Track(juce::Grid::Fr(1)), Track(juce::Grid::Fr(1)), Track(juce::Grid::Fr(1)) };
         g.templateRows = {
             Track(juce::Grid::Px(Layout::kTitleRowHeightPx)),
             Track(juce::Grid::Px(Layout::kLargeSliderRowHeightPx)),
-            Track(juce::Grid::Px(Layout::kChannelLabelRowHeightPx)),
-            Track(juce::Grid::Px(Layout::kLinkRowHeightPx))
+            Track(juce::Grid::Px(Layout::kChannelLabelRowHeightPx))
         };
         g.rowGap    = juce::Grid::Px(Layout::kRowGapPx);
         g.columnGap = juce::Grid::Px(0); // eliminate inter-column gap; control spacing via per-item margins
@@ -161,44 +193,48 @@ public:
         g.alignItems   = juce::Grid::AlignItems::stretch;
 
         auto titleItem = juce::GridItem(title).withMargin(Layout::kCellMarginPx)
-                                                .withArea(1, 1, 2, 3);
+                                                .withArea(1, 1, 2, 4);
 
-        // Sliders: minimal center gap using asymmetric margins
+        // Sliders L / M / R
         auto sl = juce::GridItem(sliderL)
                         .withMargin(juce::GridItem::Margin(
                             (float)Layout::kCellMarginPx, /*right*/ 2.0f,
                             (float)Layout::kCellMarginPx, (float)Layout::kCellMarginPx))
                         .withArea(2, 1);
+        auto sm = juce::GridItem(static_cast<juce::Component&>(sliderM))
+                        .withMargin(juce::GridItem::Margin(
+                            (float)Layout::kCellMarginPx, 2.0f,
+                            (float)Layout::kCellMarginPx, 2.0f))
+                        .withArea(2, 2);
         auto sr = juce::GridItem(sliderR)
                         .withMargin(juce::GridItem::Margin(
                             (float)Layout::kCellMarginPx, (float)Layout::kCellMarginPx,
                             (float)Layout::kCellMarginPx, /*left*/ 2.0f))
-                        .withArea(2, 2);
+                        .withArea(2, 3);
 
-        // Labels below sliders: small top + center gap
+        // Labels
         auto ll = juce::GridItem(labelL)
                         .withMargin(juce::GridItem::Margin(
-                            2.0f, /*right*/ 2.0f, 0.0f, (float)Layout::kCellMarginPx))
+                            2.0f, 2.0f, 0.0f, (float)Layout::kCellMarginPx))
                         .withArea(3, 1);
+        auto lm = juce::GridItem(labelM)
+                        .withMargin(juce::GridItem::Margin(
+                            2.0f, 2.0f, 0.0f, 2.0f))
+                        .withArea(3, 2);
         auto lr = juce::GridItem(labelR)
                         .withMargin(juce::GridItem::Margin(
-                            2.0f, (float)Layout::kCellMarginPx, 0.0f, /*left*/ 2.0f))
-                        .withArea(3, 2);
+                            2.0f, (float)Layout::kCellMarginPx, 0.0f, 2.0f))
+                        .withArea(3, 3);
 
-        auto linkItem = juce::GridItem(linkButton).withMargin(Layout::kCellMarginPx)
-                                                  .withArea(4, 2)
-                                                  .withWidth(70.0f)
-                                                  .withJustifySelf(juce::GridItem::JustifySelf::end)
-                                                  .withAlignSelf(juce::GridItem::AlignSelf::center);
-
-        g.items = { titleItem, sl, sr, ll, lr, linkItem };
+        g.items = { titleItem, sl, sm, sr, ll, lm, lr };
         g.performLayout(getLocalBounds());
 
-        // Update drag track and handles
+        // Update drag track and handles (handles hidden for now)
         dragTrack = sliderL.getBounds().withRight(sliderR.getRight());
         dragTrack = dragTrack.reduced(juce::jmax(sliderL.getWidth() / 4, 4), 4);
-        updateHandlesVisibility();
-        updateHandlePositions();
+        handleBoth.setVisible(false);
+        handleL.setVisible(false);
+        handleR.setVisible(false);
     }
 
     // Live meter overlay (normalized 0..1, where 1 = 0 dBFS).
@@ -259,9 +295,36 @@ private:
 
     void updateHandlePositions()
     {
-        // Square handle sized relative to slider column
-        const int dia = juce::jlimit(20, 48, sliderL.getWidth() * 2 + 8);
-        const int hw = dia, hh = dia;
+        // Handle size relative to slider width and filmstrip aspect ratio (height may differ from width)
+        static float stripAspect = 0.0f; // height / width per frame
+        if (stripAspect <= 0.0f)
+        {
+            auto tryNamed = [](const char* name) -> juce::Image
+            {
+                int sz = 0; if (const void* data = BinaryData::getNamedResource(name, sz))
+                    return juce::ImageFileFormat::loadFrom(data, (size_t)sz);
+                return {};
+            };
+            auto img = tryNamed("slfinal_png");
+            if (!img.isValid()) img = tryNamed("sl-final.png");
+            if (img.isValid())
+            {
+                const int w = img.getWidth();
+                const int h = img.getHeight();
+                bool vertical = (h > w);
+                int frameW = vertical ? w : h;
+                int frames = 0;
+                if (vertical && w > 0 && h % w == 0) frames = h / w; else if (!vertical && h > 0 && w % h == 0) frames = w / h; else frames = 128;
+                int frameH = vertical ? (h / juce::jmax(1, frames)) : h;
+                if (frameW > 0 && frameH > 0) stripAspect = (float)frameH / (float)frameW; else stripAspect = 1.0f;
+            }
+            else stripAspect = 1.0f;
+        }
+
+        const int baseW = sliderL.getWidth() * 2 + 8;
+        const int hw = juce::jlimit(20, 96, baseW);
+        const int hh = (int)juce::jlimit(20.0f, 160.0f, (float)hw * (stripAspect > 0.0f ? stripAspect : 1.0f));
+
         const int cx = dragTrack.getCentreX();
         auto yl = (int)std::round(valueToY(sliderL)) - hh / 2;
         auto yr = (int)std::round(valueToY(sliderR)) - hh / 2;
@@ -298,8 +361,9 @@ private:
     float meterR { 0.0f };
 
     juce::Label  title;
-    juce::Slider sliderL, sliderR;
-    juce::Label  labelL, labelR;
+    juce::Slider     sliderL, sliderR;
+    KitStripSlider   sliderM;
+    juce::Label      labelL, labelM, labelR;
     juce::ToggleButton linkButton { "Link" };
 
     // Drag handles and track area

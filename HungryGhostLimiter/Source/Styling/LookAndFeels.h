@@ -120,13 +120,7 @@ struct DonutKnobLNF : juce::LookAndFeel_V4
         knobImage = tryNamed("mkfinal_png");           // likely symbol from mk-final.png
         if (!knobImage.isValid()) knobImage = tryNamed("mk_final_png");
         if (!knobImage.isValid()) knobImage = tryNamed("mk-final.png");
-        // Fallbacks to earlier single-image knobs
-        if (!knobImage.isValid()) knobImage = tryNamed("knobdark_png");     // Projucer style for knob-dark.png
-        if (!knobImage.isValid()) knobImage = tryNamed("knob_dark_png");    // alternative
-        if (!knobImage.isValid()) knobImage = tryNamed("knob_png");         // CMake style for knob.png
-        if (!knobImage.isValid()) knobImage = tryNamed("knob-dark.png");    // raw filename
-        if (!knobImage.isValid()) knobImage = tryNamed("knob.png");
-
+      
         // As a robust fallback, scan all embedded resources for one containing "knob" and ending with .png
         if (!knobImage.isValid())
         {
@@ -149,17 +143,6 @@ struct DonutKnobLNF : juce::LookAndFeel_V4
                     }
                 }
             }
-        }
-
-        // Fallback to dev-time filesystem if not embedded
-        if (!knobImage.isValid())
-        {
-            auto base = juce::File::getSpecialLocation(juce::File::currentExecutableFile)
-                            .getParentDirectory().getParentDirectory();
-            auto fDark = base.getChildFile("assets/ui/knobs/knob-dark.png");
-            auto fLite = base.getChildFile("assets/ui/knobs/knob.png");
-            if (fDark.existsAsFile()) knobImage = juce::ImageFileFormat::loadFrom(fDark);
-            else if (fLite.existsAsFile()) knobImage = juce::ImageFileFormat::loadFrom(fLite);
         }
     }
 
