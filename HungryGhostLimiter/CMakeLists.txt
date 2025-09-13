@@ -23,6 +23,7 @@ set(ASSETS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../assets")
 juce_add_binary_data(HGLBinaryData
     SOURCES
         ${ASSETS_DIR}/logo.png
+         ${ASSETS_DIR}/logo-img.png
         "${ASSETS_DIR}/ui/kit-03/middle knob/mk-final.png"
         "${ASSETS_DIR}/ui/kit-03/background/background-03.png"
         "${ASSETS_DIR}/ui/kit-03/big knob/sb-final.png"
