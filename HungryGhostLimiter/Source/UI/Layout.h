@@ -15,7 +15,7 @@ inline constexpr int kHeaderHeightPx         = 88;  // header (logo + subtitle)
 inline constexpr int kColWidthInputsPx       = 180; // optional inputs/trim column
 inline constexpr int kColWidthThresholdPx    = 140;
 inline constexpr int kColWidthCeilingPx      = 220;
-inline constexpr int kColWidthControlPx      = 260;
+inline constexpr int kColWidthControlPx      = 150;
 inline constexpr int kColWidthMeterPx        = 80;
 
 // Third column (controls) row heights
@@ -26,7 +26,7 @@ inline constexpr int kAdvancedRowHeightPx    = 120; // placeholder panel height
 
 // Threshold/Ceiling internal rows
 inline constexpr int kTitleRowHeightPx       = 28;
-inline constexpr int kChannelLabelRowHeightPx= 20;
+inline constexpr int kChannelLabelRowHeightPx= 36;
 inline constexpr int kLargeSliderRowHeightPx = 252; // combined L/R sliders row (fits 760x460)
 inline constexpr int kLinkRowHeightPx        = 24;
 

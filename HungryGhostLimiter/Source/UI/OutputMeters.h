@@ -11,12 +11,16 @@ public:
         title.setText("OUTPUT", juce::dontSendNotification);
         title.setJustificationType(juce::Justification::centred);
         title.setInterceptsMouseClicks(false, false);
+        title.setColour(juce::Label::textColourId, juce::Colours::white.withAlpha(0.95f));
+        title.setFont(juce::Font(juce::FontOptions(14.0f, juce::Font::bold)));
         addAndMakeVisible(title);
 
         for (auto* l : { &numL, &numR })
         {
             l->setJustificationType(juce::Justification::centred);
             l->setInterceptsMouseClicks(false, false);
+            l->setColour(juce::Label::textColourId, Style::theme().textMuted);
+            l->setFont(juce::Font(juce::FontOptions(12.0f, juce::Font::plain)));
             addAndMakeVisible(*l);
         }
 

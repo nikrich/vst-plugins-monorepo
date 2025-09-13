@@ -15,11 +15,11 @@ HungryGhostLimiterAudioProcessorEditor::HungryGhostLimiterAudioProcessorEditor(H
     setLookAndFeel(&lnf);
     setResizable(false, false);
     setOpaque(true);
-    setSize(Layout::kTotalColsWidthPx + 2 * Layout::kPaddingPx, 760);
+    setSize(Layout::kTotalColsWidthPx + 2 * Layout::kPaddingPx, 520);
 
     // Sections visible
     addAndMakeVisible(logoHeader);
-    addAndMakeVisible(advanced);
+    // addAndMakeVisible(advanced);
 
     // Skin Input, Threshold & Ceiling with the pill L&F
     inputsCol.setSliderLookAndFeel(&pillLNF);
@@ -71,45 +71,43 @@ void HungryGhostLimiterAudioProcessorEditor::paint(juce::Graphics& g)
     g.setColour(juce::Colour(0xFF0C0C0C)); // #0C0C0C
     g.fillRect(footer);
 
-    // Main card (logo + main columns) with drop shadow
+    // Main card (logo + main columns)
     auto mainCard = padded; // remaining area after removing footer
-    juce::DropShadow ds(juce::Colours::black.withAlpha(0.55f), 22, {});
-    ds.drawForRectangle(g, mainCard); // draw shadow around card
 
-    // Fill card with kit-03 background image (cover) or fallback colour
+    // If no background image, draw the card with drop shadow as before
     auto radius = Style::theme().borderRadius;
     auto bw     = Style::theme().borderWidth;
-    if (bgCardImage.isValid())
+    if (!bgCardImage.isValid())
     {
-        // Compute cover rectangle preserving aspect ratio
-        auto card = mainCard.toFloat();
-        const float srcW = (float) bgCardImage.getWidth();
-        const float srcH = (float) bgCardImage.getHeight();
-        const float dstW = card.getWidth();
-        const float dstH = card.getHeight();
-        const float scale = juce::jmax(dstW / srcW, dstH / srcH);
-        const float w = srcW * scale;
-        const float h = srcH * scale;
-        const float x = card.getX() + (dstW - w) * 0.5f;
-        const float y = card.getY() + (dstH - h) * 0.5f;
-        juce::Rectangle<float> dst(x, y, w, h);
-        // Clip to rounded rectangle then draw image
-        juce::Graphics::ScopedSaveState save(g);
-        juce::Path clip; clip.addRoundedRectangle(card, radius);
-        g.reduceClipRegion(clip);
-        g.drawImage(bgCardImage, dst);
+        juce::DropShadow ds(juce::Colours::black.withAlpha(0.55f), 22, {});
+        ds.drawForRectangle(g, mainCard); // draw shadow around card
+
+        g.setColour(juce::Colour(0xFF301935));
+        g.fillRoundedRectangle(mainCard.toFloat(), radius);
+
+        // Border
+        g.setColour(juce::Colours::white.withAlpha(0.12f));
+        g.drawRoundedRectangle(mainCard.toFloat(), radius, bw);
     }
     else
     {
-        g.setColour(juce::Colour(0xFF301935));
-        g.fillRoundedRectangle(mainCard.toFloat(), radius);
-    }
+        // Fill the entire plugin area with the background image
+        auto bgRect = getLocalBounds().toFloat();
 
-    // Border: only draw when using fallback colour, not when image background is active
-    if (!bgCardImage.isValid())
-    {
-        g.setColour(juce::Colours::white.withAlpha(0.12f));
-        g.drawRoundedRectangle(mainCard.toFloat(), radius, bw);
+        const float srcW = (float) bgCardImage.getWidth();
+        const float srcH = (float) bgCardImage.getHeight();
+        const float dstW = bgRect.getWidth();
+        const float dstH = bgRect.getHeight();
+
+        // Cover-fit so the image fills the rect completely (may crop on one axis)
+        const float scale = juce::jmax(dstW / srcW, dstH / srcH);
+        const float w = srcW * scale;
+        const float h = srcH * scale;
+        const float x = bgRect.getX() + (dstW - w) * 0.5f;
+        const float y = bgRect.getY() + (dstH - h) * 0.5f;
+        juce::Rectangle<float> dst(x, y, w, h);
+
+        g.drawImage(bgCardImage, dst);
     }
 }
 
@@ -122,8 +120,8 @@ void HungryGhostLimiterAudioProcessorEditor::resized()
     logoHeader.setBounds(header);
 
     // --- Footer (Advanced Controls) ---
-    auto footer = bounds.removeFromBottom(Layout::kFooterHeightPx);
-    advanced.setBounds(footer);
+    // auto footer = bounds.removeFromBottom(Layout::kFooterHeightPx);
+    // advanced.setBounds(footer);
 
     // --- Main content: 6 columns in a Grid ---
     const int required = Layout::kTotalColsWidthPx;

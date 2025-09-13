@@ -129,6 +129,16 @@ public:
         addAndMakeVisible(labelM);
         addAndMakeVisible(labelR);
 
+        // Numeric value labels for L and R (shown below sliders, above letters)
+        for (auto* v : { &valL, &valR })
+        {
+            v->setJustificationType(juce::Justification::centred);
+            v->setInterceptsMouseClicks(false, false);
+            v->setColour(juce::Label::textColourId, Style::theme().text);
+            v->setFont(juce::Font(juce::FontOptions(12.0f, juce::Font::plain)));
+            addAndMakeVisible(*v);
+        }
+
         // Link toggle
         addAndMakeVisible(linkButton);
 
@@ -142,10 +152,13 @@ public:
         attR = std::make_unique<APVTS::SliderAttachment>(apvts, paramRId, sliderR);
         attLink = std::make_unique<APVTS::ButtonAttachment>(apvts, linkId, linkButton);
 
-        // Linked functionality disabled for now
-        sliderL.onValueChange = nullptr;
-        sliderR.onValueChange = nullptr;
+        // Update numeric value labels when sliders move
+        sliderL.onValueChange = [this]{ updateValueLabels(); };
+        sliderR.onValueChange = [this]{ updateValueLabels(); };
+        // Linked functionality disabled for now (link button hidden)
         linkButton.setVisible(false);
+
+        updateValueLabels();
 
         // Middle filmstrip slider acts as a master: dragging it updates L and R
         // Match the range to L (both L and R share the same parameter range)
@@ -180,16 +193,16 @@ public:
 
     void resized() override {
         // Enforce identical internal layout regardless of column width
-        // Fixed content width (three equal slider columns with fixed gap), centered
-        constexpr int sliderW   = 46;         // width for L, M (filmstrip), R
-        constexpr int gapX      = Layout::kBarGapPx; // horizontal gap between columns
-        constexpr int outerPadX = Layout::kCellMarginPx; // side padding inside this component
+        // Slider width adapts to available space but remains equal across L/M/R
+        int gapX      = Layout::kBarGapPx;       // horizontal gap between columns
+        int outerPadX = Layout::kCellMarginPx;   // side padding inside this component
 
-        const int contentW = outerPadX * 2 + sliderW * 3 + gapX * 2;
         auto bounds = getLocalBounds();
-        auto content = bounds.withWidth(juce::jmin(contentW, bounds.getWidth()))
-                              .withX(bounds.getX() + (bounds.getWidth() - juce::jmin(contentW, bounds.getWidth())) / 2);
+        auto content = bounds; // use full width; we'll compute inner sizes below
 
+        // Compute slider column width from available space
+        const int innerW = juce::jmax(0, content.getWidth() - outerPadX * 2);
+        const int sliderW = juce::jmax(36, (innerW - gapX * 2) / 3); // >=36 px, equal for L/M/R
         // Rows
         auto r = content;
         auto rowTitle   = r.removeFromTop(Layout::kTitleRowHeightPx);
@@ -213,10 +226,25 @@ public:
         static_cast<juce::Component&>(sliderM).setBounds(c2);
         sliderR.setBounds(c3);
 
-        auto l1 = labelsInner.removeFromLeft(sliderW); labelsInner.removeFromLeft(gapX);
-        auto l2 = labelsInner.removeFromLeft(sliderW); labelsInner.removeFromLeft(gapX);
-        auto l3 = labelsInner.removeFromLeft(sliderW);
+        // Split the labels area into two rows: values (top) and channel letters (bottom)
+        const int valueRowH  = 16;
+        const int letterRowH = 16;
+        const int midGap     = 4; // small gap between value and letter rows
+        auto valueRow  = labelsInner.removeFromTop(valueRowH);
+        labelsInner.removeFromTop(midGap);
+        auto letterRow = labelsInner.removeFromTop(letterRowH);
 
+        // Value row: L and R only (centre under side bars)
+        auto v1 = valueRow.removeFromLeft(sliderW); valueRow.removeFromLeft(gapX);
+        valueRow.removeFromLeft(sliderW);         valueRow.removeFromLeft(gapX); // skip middle
+        auto v3 = valueRow.removeFromLeft(sliderW);
+        valL.setBounds(v1);
+        valR.setBounds(v3);
+
+        // Letter row: L / M / R
+        auto l1 = letterRow.removeFromLeft(sliderW); letterRow.removeFromLeft(gapX);
+        auto l2 = letterRow.removeFromLeft(sliderW); letterRow.removeFromLeft(gapX);
+        auto l3 = letterRow.removeFromLeft(sliderW);
         labelL.setBounds(l1);
         labelM.setBounds(l2);
         labelR.setBounds(l3);
@@ -258,6 +286,16 @@ public:
     }
 
 private:
+    void updateValueLabels()
+    {
+        auto fmt = [](juce::Slider& s){ return juce::String(s.getValue(), 2); }; // 2 decimals
+        valL.setText(fmt(sliderL), juce::dontSendNotification);
+        valR.setText(fmt(sliderR), juce::dontSendNotification);
+        // Avoid ellipsis by allowing slight horizontal scaling if needed
+        valL.setMinimumHorizontalScale(0.7f);
+        valR.setMinimumHorizontalScale(0.7f);
+    }
+
     void updateHandlesVisibility()
     {
         const bool linked = linkButton.getToggleState();
@@ -347,6 +385,9 @@ private:
     }
 
     APVTS& apvts;
+
+    // UI elements
+    juce::Label valL, valR; // numeric value labels under side bars
 
     // live meter state (normalized 0..1; 1 = 0 dBFS)
     float meterL { 0.0f };

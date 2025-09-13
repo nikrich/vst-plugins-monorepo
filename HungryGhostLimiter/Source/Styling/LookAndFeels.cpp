@@ -64,9 +64,5 @@ void PillVSliderLNF::drawLinearSlider(juce::Graphics& g, int x, int y, int w, in
         g.drawRoundedRectangle(bounds, radius, 1.0f);
     }
 
-    // value text at bottom of the slider
-    auto textArea = juce::Rectangle<int>(x, y, w, h).reduced(4).removeFromBottom(22);
-    g.setColour(Style::theme().text);
-    g.setFont(juce::Font(juce::FontOptions(12.0f)));
-    g.drawFittedText(s.getTextFromValue(s.getValue()), textArea, juce::Justification::centred, 1);
+    // no inline value text: let containers place any numeric labels below the slider if desired
 }
