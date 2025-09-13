@@ -54,7 +54,7 @@ void AttenMeter::paint(juce::Graphics& g)
 
     // ---------- track ----------
     auto barF = bar.toFloat();
-    const float radius = barF.getWidth() * 0.5f;
+    const float radius = Style::theme().borderRadius;
 
     juce::ColourGradient trackGrad(trackTop, barF.getX(), barF.getY(),
         trackBot, barF.getX(), barF.getBottom(), false);

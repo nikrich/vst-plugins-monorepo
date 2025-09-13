@@ -2,6 +2,8 @@
 #include <juce_gui_extra/juce_gui_extra.h>
 #include "Layout.h"
 #include "../PluginProcessor.h"
+#include "../styling/Theme.h"
+#include <BinaryData.h>
 
 // Reusable stereo linked vertical bars (L/R) with a title and Link toggle.
 // Parameter IDs are provided at construction.
@@ -14,8 +16,33 @@ public:
         DraggableHandle(StereoLinkedBars& owner, Mode m) : parent(owner), mode(m) { setRepaintsOnMouseActivity(true); setMouseCursor(juce::MouseCursor::UpDownResizeCursor); }
         void paint(juce::Graphics& g) override {
             auto r = getLocalBounds().toFloat();
-            g.setColour(juce::Colours::black.withAlpha(isMouseOver() ? 0.9f : 0.8f));
-            g.drawRoundedRectangle(r.reduced(1.0f), 4.0f, 3.0f);
+            // load slider knob image once
+            static juce::Image knobImg;
+            if (!knobImg.isValid())
+            {
+                auto tryNamed = [](const char* name) -> juce::Image
+                {
+                    int sz = 0; if (const void* data = BinaryData::getNamedResource(name, sz))
+                        return juce::ImageFileFormat::loadFrom(data, (size_t)sz);
+                    return {};
+                };
+                knobImg = tryNamed("sliderknob_png");
+                if (!knobImg.isValid()) knobImg = tryNamed("slider_knob_png");
+                if (!knobImg.isValid()) knobImg = tryNamed("slider-knob.png");
+            }
+
+            if (knobImg.isValid())
+            {
+                g.drawImageWithin(knobImg,
+                                  (int)r.getX(), (int)r.getY(), (int)r.getWidth(), (int)r.getHeight(),
+                                  juce::RectanglePlacement::centred);
+            }
+            else
+            {
+                // fallback outline if image missing
+                g.setColour(juce::Colours::black.withAlpha(isMouseOver() ? 0.9f : 0.8f));
+                g.drawRoundedRectangle(r.reduced(1.0f), 4.0f, 3.0f);
+            }
         }
         void mouseDrag(const juce::MouseEvent& e) override { parent.onHandleDrag(mode, (float) (getY() + e.getPosition().y)); }
         void mouseDown(const juce::MouseEvent& e) override { startY = (float)e.getPosition().y; }
@@ -190,7 +217,7 @@ public:
         {
             if (r.isEmpty() || norm <= 0.001f) return;
             auto rf = r.toFloat().reduced(2.0f);
-            const float radius = rf.getWidth() * 0.5f;
+            const float radius = Style::theme().borderRadius;
             const float h = rf.getHeight() * juce::jlimit(0.0f, 1.0f, norm);
             juce::Rectangle<float> fill = rf.withY(rf.getBottom() - h).withHeight(h);
             juce::Colour c = juce::Colours::aqua.withAlpha(0.22f);
@@ -232,7 +259,9 @@ private:
 
     void updateHandlePositions()
     {
-        const int hw = 56; const int hh = 28; // handle size
+        // Square handle sized relative to slider column
+        const int dia = juce::jlimit(20, 48, sliderL.getWidth() * 2 + 8);
+        const int hw = dia, hh = dia;
         const int cx = dragTrack.getCentreX();
         auto yl = (int)std::round(valueToY(sliderL)) - hh / 2;
         auto yr = (int)std::round(valueToY(sliderR)) - hh / 2;

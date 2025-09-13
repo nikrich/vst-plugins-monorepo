@@ -1,5 +1,5 @@
 #include "LookAndFeels.h"
-#include "BinaryData.h"
+#include <BinaryData.h>
 
 // ----- VibeLNF -----
 VibeLNF::VibeLNF()
@@ -56,6 +56,31 @@ void PillVSliderLNF::drawLinearSlider(juce::Graphics& g, int x, int y, int w, in
         Style::theme().fillTop, fill.getX(), fill.getY(), false);
     g.setGradientFill(fillGrad);
     g.fillRoundedRectangle(fill, radius);
+
+    // Draw knob button (image) at the fill boundary, if the asset is linked
+    {
+        static juce::Image knobImg;
+        if (!knobImg.isValid())
+        {
+            auto tryNamed = [](const char* name) -> juce::Image
+            {
+                int sz = 0; if (const void* data = BinaryData::getNamedResource(name, sz))
+                    return juce::ImageFileFormat::loadFrom(data, (size_t)sz);
+                return {};
+            };
+            knobImg = tryNamed("sliderknob_png");
+            if (!knobImg.isValid()) knobImg = tryNamed("slider_knob_png");
+            if (!knobImg.isValid()) knobImg = tryNamed("slider-knob.png");
+        }
+
+        if (knobImg.isValid())
+        {
+            const float dia = juce::jmin(bounds.getWidth() * 1.35f, 32.0f);
+            const float yAt = juce::jlimit(bounds.getY() + dia * 0.5f, fill.getY(), bounds.getBottom() - dia * 0.5f);
+            auto knobBounds = juce::Rectangle<float>(dia, dia).withCentre({ bounds.getCentreX(), yAt });
+            g.drawImageWithin(knobImg, knobBounds.getX(), knobBounds.getY(), knobBounds.getWidth(), knobBounds.getHeight(), juce::RectanglePlacement::centred);
+        }
+    }
 
     // no outline or gloss (clean look)
     if (outlineAlpha > 0.0f)

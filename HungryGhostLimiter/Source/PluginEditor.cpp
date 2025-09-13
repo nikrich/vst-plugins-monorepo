@@ -1,5 +1,5 @@
 #include "PluginEditor.h"
-#include "BinaryData.h"
+#include <BinaryData.h>
 
 HungryGhostLimiterAudioProcessorEditor::HungryGhostLimiterAudioProcessorEditor(HungryGhostLimiterAudioProcessor& p)
     : juce::AudioProcessorEditor(&p)
@@ -38,6 +38,19 @@ HungryGhostLimiterAudioProcessorEditor::HungryGhostLimiterAudioProcessorEditor(H
     addAndMakeVisible(meterCol);
     addAndMakeVisible(outputCol);
 
+    // Load kit-03 background-03 into memory (BinaryData)
+    {
+        auto tryNamed = [](const char* name) -> juce::Image
+        {
+            int sz = 0; if (const void* data = BinaryData::getNamedResource(name, sz))
+                return juce::ImageFileFormat::loadFrom(data, (size_t)sz);
+            return {};
+        };
+        bgCardImage = tryNamed("background03_png");
+        if (!bgCardImage.isValid()) bgCardImage = tryNamed("background_03_png");
+        if (!bgCardImage.isValid()) bgCardImage = tryNamed("background-03.png");
+    }
+
     startTimerHz(30);
 }
 
@@ -51,24 +64,50 @@ void HungryGhostLimiterAudioProcessorEditor::paint(juce::Graphics& g)
     auto& th = Style::theme();
     g.fillAll(th.bg);
 
-    // subtle panel behind meter column (exact match with layout)
-    const auto padded = getLocalBounds().reduced(Layout::kPaddingPx);
-    const auto content = padded.withTrimmedTop(Layout::kHeaderHeightPx).withTrimmedBottom(Layout::kFooterHeightPx);
+    auto padded = getLocalBounds().reduced(Layout::kPaddingPx);
 
-    const int required = Layout::kTotalColsWidthPx;
-    auto rowBounds = content.withWidth(juce::jmin(required, content.getWidth()));
-    rowBounds.setX(content.getX() + (content.getWidth() - rowBounds.getWidth()) / 2);
+    // Footer background (advanced section)
+    auto footer = padded.removeFromBottom(Layout::kFooterHeightPx);
+    g.setColour(juce::Colour(0xFF0C0C0C)); // #0C0C0C
+    g.fillRect(footer);
 
-    // meter area is column 5 from right side when Output exists; easier: compute by subtracting right output width + gaps
-    auto tmp = rowBounds;
-    tmp.removeFromRight(Layout::kColWidthOutputPx); // output col
-    tmp.removeFromRight(Layout::kColGapPx);         // gap between meter and output
-    auto meterArea = tmp.removeFromRight(Layout::kColWidthMeterPx);
+    // Main card (logo + main columns) with drop shadow
+    auto mainCard = padded; // remaining area after removing footer
+    juce::DropShadow ds(juce::Colours::black.withAlpha(0.55f), 22, {});
+    ds.drawForRectangle(g, mainCard); // draw shadow around card
 
-    juce::DropShadow ds(juce::Colours::black.withAlpha(0.45f), 18, {});
-    ds.drawForRectangle(g, meterArea.reduced(4));
-    g.setColour(th.panel);
-    g.fillRoundedRectangle(meterArea.reduced(4).toFloat(), 12.0f);
+    // Fill card with kit-03 background image (cover) or fallback colour
+    auto radius = Style::theme().borderRadius;
+    auto bw     = Style::theme().borderWidth;
+    if (bgCardImage.isValid())
+    {
+        // Compute cover rectangle preserving aspect ratio
+        auto card = mainCard.toFloat();
+        const float srcW = (float) bgCardImage.getWidth();
+        const float srcH = (float) bgCardImage.getHeight();
+        const float dstW = card.getWidth();
+        const float dstH = card.getHeight();
+        const float scale = juce::jmax(dstW / srcW, dstH / srcH);
+        const float w = srcW * scale;
+        const float h = srcH * scale;
+        const float x = card.getX() + (dstW - w) * 0.5f;
+        const float y = card.getY() + (dstH - h) * 0.5f;
+        juce::Rectangle<float> dst(x, y, w, h);
+        // Clip to rounded rectangle then draw image
+        juce::Graphics::ScopedSaveState save(g);
+        juce::Path clip; clip.addRoundedRectangle(card, radius);
+        g.reduceClipRegion(clip);
+        g.drawImage(bgCardImage, dst);
+    }
+    else
+    {
+        g.setColour(juce::Colour(0xFF301935));
+        g.fillRoundedRectangle(mainCard.toFloat(), radius);
+    }
+
+    // Border
+    g.setColour(juce::Colours::white.withAlpha(0.12f));
+    g.drawRoundedRectangle(mainCard.toFloat(), radius, bw);
 }
 
 void HungryGhostLimiterAudioProcessorEditor::resized()

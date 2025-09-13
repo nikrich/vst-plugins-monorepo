@@ -2,6 +2,7 @@
 #include <juce_gui_extra/juce_gui_extra.h>
 #include "Layout.h"
 #include "../PluginProcessor.h"
+#include "../styling/LookAndFeels.h"
 
 class AdvancedPanel : public juce::Component {
 public:
@@ -100,10 +101,12 @@ public:
         auto m = r.removeFromLeft(cardW);
 
         auto drawCard = [&](juce::Rectangle<int> box) {
+            auto radius = Style::theme().borderRadius;
+            auto bw     = Style::theme().borderWidth;
             g.setColour(juce::Colours::white.withAlpha(0.12f));
-            g.fillRoundedRectangle(box.toFloat(), 8.0f);
+            g.fillRoundedRectangle(box.toFloat(), radius);
             g.setColour(juce::Colours::white.withAlpha(0.7f));
-            g.drawRoundedRectangle(box.toFloat(), 8.0f, 2.0f);
+            g.drawRoundedRectangle(box.toFloat(), radius, bw);
         };
 
         drawCard(qCard = q);

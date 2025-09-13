@@ -23,6 +23,10 @@ set(ASSETS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../assets")
 juce_add_binary_data(HGLBinaryData
     SOURCES
         ${ASSETS_DIR}/logo.png
+        ${ASSETS_DIR}/ui/knobs/knob-dark.png
+        ${ASSETS_DIR}/ui/slider/slider-knob.png
+        "${ASSETS_DIR}/ui/kit-03/middle knob/mk-final.png"
+        "${ASSETS_DIR}/ui/kit-03/background/background-03.png"
         ${ASSETS_DIR}/fonts/Montserrat/Montserrat-Italic-VariableFont_wght.ttf
         ${ASSETS_DIR}/fonts/Montserrat/Montserrat-VariableFont_wght.ttf
 )

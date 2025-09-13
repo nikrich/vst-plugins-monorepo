@@ -84,7 +84,7 @@ public:
         {
             if (bar.isEmpty()) return;
             auto bf = bar.reduced(6).toFloat();
-            const float radius = bf.getWidth() * 0.5f;
+            const float radius = Style::theme().borderRadius;
 
             // Track
             juce::ColourGradient trackGrad(th.trackTop, bf.getX(), bf.getY(),
