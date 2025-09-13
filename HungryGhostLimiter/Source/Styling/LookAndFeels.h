@@ -111,10 +111,6 @@ struct NeonToggleLNF : juce::LookAndFeel_V4
 
             g.drawImage(img, (int)dx, (int)dy, (int)dw, (int)dh, 0, 0, (int)iw, (int)ih);
 
-            // Subtle hover/press overlay
-            if (shouldHighlight || shouldDown)
-                g.setColour(juce::Colours::white.withAlpha(0.06f)), g.fillRect(b.getLocalBounds());
-
             // Skip drawing default text when skinned
             return;
         }
@@ -153,8 +149,6 @@ struct NeonToggleLNF : juce::LookAndFeel_V4
         g.setFont(juce::Font(juce::FontOptions(12.0f, juce::Font::plain)));
         g.drawFittedText(b.getButtonText(), labelArea.toNearestInt(), juce::Justification::centred, 1);
 
-        if (shouldHighlight || shouldDown)
-            g.fillAll(juce::Colours::white.withAlpha(0.03f));
     }
 };
 
@@ -260,17 +254,19 @@ struct DonutKnobLNF : juce::LookAndFeel_V4
         g.strokePath(bg, stroke);
 
         // Stronger outward halo behind the value ring with smooth fade (Option A)
+        if (slider.isEnabled())
         {
             juce::Path valueArc; valueArc.addCentredArc(centre.x, centre.y, radius, radius, 0.0f, startAngle, angle, true);
 
             const float ringOuterRadius = radius + ringThickness * 0.5f; // outer edge of stroked ring
             const float haloExtent = juce::jmax(12.0f, ringThickness * 10.0f);
 
-            juce::Path haloClipOuter; haloClipOuter.addEllipse(centre.x - (ringOuterRadius + haloExtent), centre.y - (ringOuterRadius + haloExtent),
-                                                               2.0f * (ringOuterRadius + haloExtent), 2.0f * (ringOuterRadius + haloExtent));
-            juce::Path haloClipInner; haloClipInner.addEllipse(centre.x - ringOuterRadius, centre.y - ringOuterRadius,
-                                                               2.0f * ringOuterRadius, 2.0f * ringOuterRadius);
-            juce::Path outwardOnlyClip = haloClipOuter; outwardOnlyClip.addPath(haloClipInner, juce::AffineTransform::rotation(juce::MathConstants<float>::pi, centre.x, centre.y));
+            juce::Path outwardOnlyClip;
+            outwardOnlyClip.addEllipse(centre.x - (ringOuterRadius + haloExtent), centre.y - (ringOuterRadius + haloExtent),
+                                       2.0f * (ringOuterRadius + haloExtent), 2.0f * (ringOuterRadius + haloExtent));
+            outwardOnlyClip.addEllipse(centre.x - ringOuterRadius, centre.y - ringOuterRadius,
+                                       2.0f * ringOuterRadius, 2.0f * ringOuterRadius);
+            outwardOnlyClip.setUsingNonZeroWinding(false); // even-odd -> donut region
 
             juce::Graphics::ScopedSaveState save(g);
             g.reduceClipRegion(outwardOnlyClip);
@@ -286,11 +282,20 @@ struct DonutKnobLNF : juce::LookAndFeel_V4
             }
         }
 
-        // value ring (purple accent)
+        // value ring: purple when enabled, grey when disabled
         juce::Path val; val.addCentredArc(centre.x, centre.y, radius, radius, 0.0f, startAngle, angle, true);
-        juce::ColourGradient grad(juce::Colour(0xFFC084FC), centre.x - radius, centre.y + radius,
-                                  juce::Colour(0xFF7C3AED), centre.x + radius, centre.y - radius, false);
-        g.setGradientFill(grad);
+        if (slider.isEnabled())
+        {
+            juce::ColourGradient grad(juce::Colour(0xFFC084FC), centre.x - radius, centre.y + radius,
+                                      juce::Colour(0xFF7C3AED), centre.x + radius, centre.y - radius, false);
+            g.setGradientFill(grad);
+        }
+        else
+        {
+            juce::ColourGradient grad(juce::Colour(0xFFBBBBBB), centre.x - radius, centre.y + radius,
+                                      juce::Colour(0xFF888888), centre.x + radius, centre.y - radius, false);
+            g.setGradientFill(grad);
+        }
         g.strokePath(val, stroke);
 
         // Inner face: if we have a PNG knob, draw a filmstrip frame if available; otherwise fallback gradient face

@@ -19,11 +19,29 @@ public:
         release.setTextValueSuffix(" ms");
         addAndMakeVisible(release);
 
+        // Auto Release header + toggle
+        autoHeader.setText("AUTO RELEASE", juce::dontSendNotification);
+        autoHeader.setJustificationType(juce::Justification::centred);
+        autoHeader.setInterceptsMouseClicks(false, false);
+        autoHeader.setColour(juce::Label::textColourId, juce::Colours::white.withAlpha(0.90f));
+        autoHeader.setFont(juce::Font(juce::FontOptions(12.0f, juce::Font::bold)));
+        addAndMakeVisible(autoHeader);
+
         autoBtn.setButtonText("Auto Release");
         addAndMakeVisible(autoBtn);
 
         attRel  = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(apvts, "release", release);
         attAuto = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(apvts, "autoRelease", autoBtn);
+
+        // Ensure knob enablement follows auto toggle state (user and programmatic changes)
+        auto updateEnabled = [this]{
+            const bool enabled = !autoBtn.getToggleState();
+            release.setEnabled(enabled);
+            repaint();
+        };
+        autoBtn.onClick = updateEnabled;
+        autoBtn.onStateChange = updateEnabled; // covers programmatic changes
+        updateEnabled();
     }
 
     void setKnobLookAndFeel(juce::LookAndFeel* lnf) { release.setLookAndFeel(lnf); }
@@ -31,21 +49,34 @@ public:
 
     void resized() override
     {
-        // Title at top, knob in middle, auto toggle below
+        // Title at top, knob in middle, auto header + big toggle at bottom
         auto r = getLocalBounds();
         auto titleArea = r.removeFromTop(Layout::kTitleRowHeightPx);
-        title.setBounds(titleArea.reduced(4));
+        title.setBounds(titleArea.reduced(2));
 
-        auto knobArea = r.removeFromTop(Layout::kReleaseRowHeightPx - Layout::kTitleRowHeightPx - 24);
-        release.setBounds(knobArea.reduced(6));
+        // Reserve space for auto header + toggle at the bottom
+        const int autoHeaderH = 20;
+        const int autoToggleH = 44; // slightly smaller toggle height
+        auto autoBlock = r.removeFromBottom(autoHeaderH + autoToggleH);
+        auto autoToggleArea = autoBlock.removeFromBottom(autoToggleH);
+        auto autoHeaderArea = autoBlock;
 
-        auto autoArea = r.removeFromTop(24);
-        autoBtn.setBounds(autoArea.reduced(4));
+        // Add spacing between the auto toggle block and the release knob (increase gap)
+        r.removeFromBottom(Layout::kRowGapPx * 2);
+
+        // Knob uses remaining space
+        auto knobArea = r;
+        release.setBounds(knobArea.reduced(2));
+
+        // Place header + toggle
+        autoHeader.setBounds(autoHeaderArea.reduced(2));
+        autoBtn.setBounds(autoToggleArea.reduced(2));
     }
 
 private:
     juce::Label        title;
     juce::Slider       release;
+    juce::Label        autoHeader;
     juce::ToggleButton autoBtn { "Auto Release" };
 
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> attRel;

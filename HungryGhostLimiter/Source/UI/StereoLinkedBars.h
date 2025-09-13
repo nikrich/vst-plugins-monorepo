@@ -179,55 +179,47 @@ public:
     }
 
     void resized() override {
-        // 3 columns (L/M/R), 3 rows: Title, Sliders, Labels
-        juce::Grid g; using Track = juce::Grid::TrackInfo;
-        g.templateColumns = { Track(juce::Grid::Fr(1)), Track(juce::Grid::Fr(1)), Track(juce::Grid::Fr(1)) };
-        g.templateRows = {
-            Track(juce::Grid::Px(Layout::kTitleRowHeightPx)),
-            Track(juce::Grid::Px(Layout::kLargeSliderRowHeightPx)),
-            Track(juce::Grid::Px(Layout::kChannelLabelRowHeightPx))
-        };
-        g.rowGap    = juce::Grid::Px(Layout::kRowGapPx);
-        g.columnGap = juce::Grid::Px(0); // eliminate inter-column gap; control spacing via per-item margins
-        g.justifyItems = juce::Grid::JustifyItems::stretch;
-        g.alignItems   = juce::Grid::AlignItems::stretch;
+        // Enforce identical internal layout regardless of column width
+        // Fixed content width (three equal slider columns with fixed gap), centered
+        constexpr int sliderW   = 46;         // width for L, M (filmstrip), R
+        constexpr int gapX      = Layout::kBarGapPx; // horizontal gap between columns
+        constexpr int outerPadX = Layout::kCellMarginPx; // side padding inside this component
 
-        auto titleItem = juce::GridItem(title).withMargin(Layout::kCellMarginPx)
-                                                .withArea(1, 1, 2, 4);
+        const int contentW = outerPadX * 2 + sliderW * 3 + gapX * 2;
+        auto bounds = getLocalBounds();
+        auto content = bounds.withWidth(juce::jmin(contentW, bounds.getWidth()))
+                              .withX(bounds.getX() + (bounds.getWidth() - juce::jmin(contentW, bounds.getWidth())) / 2);
 
-        // Sliders L / M / R
-        auto sl = juce::GridItem(sliderL)
-                        .withMargin(juce::GridItem::Margin(
-                            (float)Layout::kCellMarginPx, /*right*/ 2.0f,
-                            (float)Layout::kCellMarginPx, (float)Layout::kCellMarginPx))
-                        .withArea(2, 1);
-        auto sm = juce::GridItem(static_cast<juce::Component&>(sliderM))
-                        .withMargin(juce::GridItem::Margin(
-                            (float)Layout::kCellMarginPx, 2.0f,
-                            (float)Layout::kCellMarginPx, 2.0f))
-                        .withArea(2, 2);
-        auto sr = juce::GridItem(sliderR)
-                        .withMargin(juce::GridItem::Margin(
-                            (float)Layout::kCellMarginPx, (float)Layout::kCellMarginPx,
-                            (float)Layout::kCellMarginPx, /*left*/ 2.0f))
-                        .withArea(2, 3);
+        // Rows
+        auto r = content;
+        auto rowTitle   = r.removeFromTop(Layout::kTitleRowHeightPx);
+        r.removeFromTop(Layout::kRowGapPx);
+        auto rowSliders = r.removeFromTop(Layout::kLargeSliderRowHeightPx);
+        r.removeFromTop(0); // no extra gap before labels
+        auto rowLabels  = r.removeFromTop(Layout::kChannelLabelRowHeightPx);
 
-        // Labels
-        auto ll = juce::GridItem(labelL)
-                        .withMargin(juce::GridItem::Margin(
-                            2.0f, 2.0f, 0.0f, (float)Layout::kCellMarginPx))
-                        .withArea(3, 1);
-        auto lm = juce::GridItem(labelM)
-                        .withMargin(juce::GridItem::Margin(
-                            2.0f, 2.0f, 0.0f, 2.0f))
-                        .withArea(3, 2);
-        auto lr = juce::GridItem(labelR)
-                        .withMargin(juce::GridItem::Margin(
-                            2.0f, (float)Layout::kCellMarginPx, 0.0f, 2.0f))
-                        .withArea(3, 3);
+        // Title spans full content width
+        title.setBounds(rowTitle.reduced(outerPadX));
 
-        g.items = { titleItem, sl, sm, sr, ll, lm, lr };
-        g.performLayout(getLocalBounds());
+        // Columns
+        auto slidersInner = rowSliders.reduced(outerPadX, Layout::kCellMarginPx);
+        auto labelsInner  = rowLabels.reduced(outerPadX, 0);
+
+        auto c1 = slidersInner.removeFromLeft(sliderW); slidersInner.removeFromLeft(gapX);
+        auto c2 = slidersInner.removeFromLeft(sliderW); slidersInner.removeFromLeft(gapX);
+        auto c3 = slidersInner.removeFromLeft(sliderW);
+
+        sliderL.setBounds(c1);
+        static_cast<juce::Component&>(sliderM).setBounds(c2);
+        sliderR.setBounds(c3);
+
+        auto l1 = labelsInner.removeFromLeft(sliderW); labelsInner.removeFromLeft(gapX);
+        auto l2 = labelsInner.removeFromLeft(sliderW); labelsInner.removeFromLeft(gapX);
+        auto l3 = labelsInner.removeFromLeft(sliderW);
+
+        labelL.setBounds(l1);
+        labelM.setBounds(l2);
+        labelR.setBounds(l3);
 
         // Update drag track and handles (handles hidden for now)
         dragTrack = sliderL.getBounds().withRight(sliderR.getRight());
