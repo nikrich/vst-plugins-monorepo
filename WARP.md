@@ -105,8 +105,7 @@ UI Overview:
 - VU Meter Animation 128 Frames 320*500 px.
 - Big Button 150*150 px.
 - Small Button 80*155 px.
-
--Slider 50*290 px.
+- Slider 128*290 px.
 
 Key references
 - Project README: README.md (design/parameters/signal flow)

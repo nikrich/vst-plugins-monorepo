@@ -31,10 +31,17 @@ public:
             const int w = strip.getWidth();
             const int h = strip.getHeight();
             vertical = (h > w);
-            frameSize = vertical ? w : h;
-            if (vertical && w > 0 && h % w == 0)      frames = h / w;
-            else if (!vertical && h > 0 && w % h == 0) frames = w / h;
-            else frames = 128;
+            frames = 128; // kit specifies 128 frames
+            if (vertical)
+            {
+                frameW = w;
+                frameH = (frames > 0) ? h / frames : h;
+            }
+            else
+            {
+                frameH = h;
+                frameW = (frames > 0) ? w / frames : w;
+            }
         }
     }
 
@@ -47,7 +54,7 @@ public:
 
     void paint(juce::Graphics& g) override
     {
-        if (!(strip.isValid() && frameSize > 0 && frames > 1)) return;
+        if (!(strip.isValid() && frameW > 0 && frameH > 0 && frames > 1)) return;
 
         const auto& s = slider;
         const auto r  = getLocalBounds().toFloat();
@@ -55,17 +62,16 @@ public:
         const auto range = s.getRange();
         const double prop = range.getLength() > 0.0 ? (s.getValue() - range.getStart()) / range.getLength() : 0.0;
         const int idx = juce::jlimit(0, frames - 1, (int)std::round(prop * (frames - 1)));
-        const int sx  = vertical ? 0 : idx * frameSize;
-        const int sy  = vertical ? idx * frameSize : 0;
+        const int sx  = vertical ? 0 : idx * frameW;
+        const int sy  = vertical ? idx * frameH : 0;
 
-        // Contain: fit inside both width and height (no cropping), centered
-        const float scale = juce::jmin(r.getWidth() / (float)frameSize,
-                                       r.getHeight() / (float)frameSize);
-        const float dw = frameSize * scale;
-        const float dh = frameSize * scale;
+        // Fit full height to match side bars; center horizontally.
+        const float scale = r.getHeight() / (float)frameH;
+        const float dw = frameW * scale;
+        const float dh = r.getHeight();
         const float dx = r.getX() + (r.getWidth()  - dw) * 0.5f;
-        const float dy = r.getY() + (r.getHeight() - dh) * 0.5f;
-        g.drawImage(strip, (int)dx, (int)dy, (int)dw, (int)dh, sx, sy, frameSize, frameSize);
+        const float dy = r.getY();
+        g.drawImage(strip, (int)dx, (int)dy, (int)dw, (int)dh, sx, sy, frameW, frameH);
     }
 
     juce::Slider& getSlider() noexcept { return slider; }
@@ -82,6 +88,7 @@ private:
     juce::Slider slider;
     juce::Image  strip;
     bool vertical { true };
-    int frameSize { 0 };
+    int frameW { 0 };
+    int frameH { 0 };
     int frames { 0 };
 };
