@@ -32,8 +32,10 @@ void PillVSliderLNF::drawLinearSlider(juce::Graphics& g, int x, int y, int w, in
 {
     juce::ignoreUnused(sliderPos, minPos, maxPos, style);
 
+    // Use fixed horizontal padding so track width is consistent across sliders
+    const float sidePad = 8.0f; // px, slightly narrower to fit columns consistently
     auto bounds = juce::Rectangle<float>(x, y, (float)w, (float)h)
-        .reduced(juce::jmax(w * 0.45f, 6.0f), 6.0f);
+        .reduced(sidePad, 6.0f);
     bounds.removeFromBottom(4.0f);
     const float radius = bounds.getWidth() * 0.5f;
 

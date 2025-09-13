@@ -193,16 +193,20 @@ public:
 
     void resized() override {
         // Enforce identical internal layout regardless of column width
-        // Slider width adapts to available space but remains equal across L/M/R
-        int gapX      = Layout::kBarGapPx;       // horizontal gap between columns
-        int outerPadX = Layout::kCellMarginPx;   // side padding inside this component
+        // Use fixed internal widths so all columns (Input/Threshold/Ceiling) look identical
+        constexpr int idealSliderW = 46;                   // target width for each slider
+        constexpr int gapX         = Layout::kBarGapPx;    // horizontal gap between columns
+        constexpr int outerPadX    = Layout::kCellMarginPx;// side padding inside this component
 
         auto bounds = getLocalBounds();
-        auto content = bounds; // use full width; we'll compute inner sizes below
 
-        // Compute slider column width from available space
-        const int innerW = juce::jmax(0, content.getWidth() - outerPadX * 2);
-        const int sliderW = juce::jmax(36, (innerW - gapX * 2) / 3); // >=36 px, equal for L/M/R
+        // Compute sliderW that fits the available width, capped at the ideal
+        const int avail = juce::jmax(0, bounds.getWidth() - outerPadX * 2 - gapX * 2);
+        const int sliderW = juce::jmax(24, juce::jmin(idealSliderW, avail / 3));
+
+        const int contentW = outerPadX * 2 + sliderW * 3 + gapX * 2;
+        auto content = bounds.withWidth(contentW)
+                              .withX(bounds.getX() + (bounds.getWidth() - contentW) / 2);
         // Rows
         auto r = content;
         auto rowTitle   = r.removeFromTop(Layout::kTitleRowHeightPx);
@@ -238,8 +242,9 @@ public:
         auto v1 = valueRow.removeFromLeft(sliderW); valueRow.removeFromLeft(gapX);
         valueRow.removeFromLeft(sliderW);         valueRow.removeFromLeft(gapX); // skip middle
         auto v3 = valueRow.removeFromLeft(sliderW);
-        valL.setBounds(v1);
-        valR.setBounds(v3);
+        const int expand = 8; // allow a little extra width to avoid ellipses
+        valL.setBounds(v1.expanded(expand, 0));
+        valR.setBounds(v3.expanded(expand, 0));
 
         // Letter row: L / M / R
         auto l1 = letterRow.removeFromLeft(sliderW); letterRow.removeFromLeft(gapX);
@@ -288,7 +293,11 @@ public:
 private:
     void updateValueLabels()
     {
-        auto fmt = [](juce::Slider& s){ return juce::String(s.getValue(), 2); }; // 2 decimals
+        auto fmt = [](juce::Slider& s){
+            const double v = s.getValue();
+            // Use 2 decimals for |v| < 10, otherwise 1 decimal to keep text short
+            return std::abs(v) < 10.0 ? juce::String(v, 2) : juce::String(v, 1);
+        };
         valL.setText(fmt(sliderL), juce::dontSendNotification);
         valR.setText(fmt(sliderR), juce::dontSendNotification);
         // Avoid ellipsis by allowing slight horizontal scaling if needed

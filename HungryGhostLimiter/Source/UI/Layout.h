@@ -13,8 +13,8 @@ inline constexpr int kHeaderHeightPx         = 88;  // header (logo + subtitle)
 
 // Fixed column widths
 inline constexpr int kColWidthInputsPx       = 180; // optional inputs/trim column
-inline constexpr int kColWidthThresholdPx    = 140;
-inline constexpr int kColWidthCeilingPx      = 220;
+inline constexpr int kColWidthThresholdPx    = 180;
+inline constexpr int kColWidthCeilingPx      = 180;
 inline constexpr int kColWidthControlPx      = 150;
 inline constexpr int kColWidthMeterPx        = 80;
 
