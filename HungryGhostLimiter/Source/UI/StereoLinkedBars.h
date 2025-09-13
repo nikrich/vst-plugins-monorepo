@@ -200,11 +200,13 @@ public:
 
         auto bounds = getLocalBounds();
 
-        // Compute sliderW that fits the available width, capped at the ideal
+        // Compute middle slider width that fits the available width, capped at the ideal
         const int avail = juce::jmax(0, bounds.getWidth() - outerPadX * 2 - gapX * 2);
-        const int sliderW = juce::jmax(24, juce::jmin(idealSliderW, avail / 3));
+        const int midW = juce::jmax(24, juce::jmin(idealSliderW, avail / 3));
+        // Make side bars slightly narrower than the middle to get the requested look
+        const int sideW = juce::jmax(18, midW - 8);
 
-        const int contentW = outerPadX * 2 + sliderW * 3 + gapX * 2;
+        const int contentW = outerPadX * 2 + sideW + gapX + midW + gapX + sideW;
         auto content = bounds.withWidth(contentW)
                               .withX(bounds.getX() + (bounds.getWidth() - contentW) / 2);
         // Rows
@@ -222,9 +224,9 @@ public:
         auto slidersInner = rowSliders.reduced(outerPadX, Layout::kCellMarginPx);
         auto labelsInner  = rowLabels.reduced(outerPadX, 0);
 
-        auto c1 = slidersInner.removeFromLeft(sliderW); slidersInner.removeFromLeft(gapX);
-        auto c2 = slidersInner.removeFromLeft(sliderW); slidersInner.removeFromLeft(gapX);
-        auto c3 = slidersInner.removeFromLeft(sliderW);
+        auto c1 = slidersInner.removeFromLeft(sideW); slidersInner.removeFromLeft(gapX);
+        auto c2 = slidersInner.removeFromLeft(midW);  slidersInner.removeFromLeft(gapX);
+        auto c3 = slidersInner.removeFromLeft(sideW);
 
         sliderL.setBounds(c1);
         static_cast<juce::Component&>(sliderM).setBounds(c2);
@@ -239,17 +241,17 @@ public:
         auto letterRow = labelsInner.removeFromTop(letterRowH);
 
         // Value row: L and R only (centre under side bars)
-        auto v1 = valueRow.removeFromLeft(sliderW); valueRow.removeFromLeft(gapX);
-        valueRow.removeFromLeft(sliderW);         valueRow.removeFromLeft(gapX); // skip middle
-        auto v3 = valueRow.removeFromLeft(sliderW);
+        auto v1 = valueRow.removeFromLeft(sideW); valueRow.removeFromLeft(gapX);
+        valueRow.removeFromLeft(midW);            valueRow.removeFromLeft(gapX); // skip middle
+        auto v3 = valueRow.removeFromLeft(sideW);
         const int expand = 8; // allow a little extra width to avoid ellipses
         valL.setBounds(v1.expanded(expand, 0));
         valR.setBounds(v3.expanded(expand, 0));
 
         // Letter row: L / M / R
-        auto l1 = letterRow.removeFromLeft(sliderW); letterRow.removeFromLeft(gapX);
-        auto l2 = letterRow.removeFromLeft(sliderW); letterRow.removeFromLeft(gapX);
-        auto l3 = letterRow.removeFromLeft(sliderW);
+        auto l1 = letterRow.removeFromLeft(sideW); letterRow.removeFromLeft(gapX);
+        auto l2 = letterRow.removeFromLeft(midW);  letterRow.removeFromLeft(gapX);
+        auto l3 = letterRow.removeFromLeft(sideW);
         labelL.setBounds(l1);
         labelM.setBounds(l2);
         labelR.setBounds(l3);
