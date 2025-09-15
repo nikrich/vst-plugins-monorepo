@@ -1,0 +1,46 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 11.00
+# Visual Studio Version 17
+
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "HungryGhostLimiter - Standalone Plugin", "HungryGhostLimiter_StandalonePlugin.vcxproj", "{3B147F94-81A4-9C87-EE07-4C10331D287A}"
+	ProjectSection(ProjectDependencies) = postProject
+		{C5C97937-54F3-377D-ACFE-6A6535480771} = {C5C97937-54F3-377D-ACFE-6A6535480771}
+	EndProjectSection
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "HungryGhostLimiter - VST3", "HungryGhostLimiter_VST3.vcxproj", "{72AF14FD-4B15-3388-C6DA-874ECC2BFD7C}"
+	ProjectSection(ProjectDependencies) = postProject
+		{C5C97937-54F3-377D-ACFE-6A6535480771} = {C5C97937-54F3-377D-ACFE-6A6535480771}
+		{656EEA1D-0672-DA10-0627-B8AF304A9C8A} = {656EEA1D-0672-DA10-0627-B8AF304A9C8A}
+	EndProjectSection
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "HungryGhostLimiter - Shared Code", "HungryGhostLimiter_SharedCode.vcxproj", "{C5C97937-54F3-377D-ACFE-6A6535480771}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "HungryGhostLimiter - VST3 Manifest Helper", "HungryGhostLimiter_VST3ManifestHelper.vcxproj", "{656EEA1D-0672-DA10-0627-B8AF304A9C8A}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x64 = Debug|x64
+		Release|x64 = Release|x64
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{72AF14FD-4B15-3388-C6DA-874ECC2BFD7C}.Debug|x64.ActiveCfg = Debug|x64
+		{72AF14FD-4B15-3388-C6DA-874ECC2BFD7C}.Debug|x64.Build.0 = Debug|x64
+		{72AF14FD-4B15-3388-C6DA-874ECC2BFD7C}.Release|x64.ActiveCfg = Release|x64
+		{72AF14FD-4B15-3388-C6DA-874ECC2BFD7C}.Release|x64.Build.0 = Release|x64
+		{3B147F94-81A4-9C87-EE07-4C10331D287A}.Debug|x64.ActiveCfg = Debug|x64
+		{3B147F94-81A4-9C87-EE07-4C10331D287A}.Debug|x64.Build.0 = Debug|x64
+		{3B147F94-81A4-9C87-EE07-4C10331D287A}.Release|x64.ActiveCfg = Release|x64
+		{3B147F94-81A4-9C87-EE07-4C10331D287A}.Release|x64.Build.0 = Release|x64
+		{C5C97937-54F3-377D-ACFE-6A6535480771}.Debug|x64.ActiveCfg = Debug|x64
+		{C5C97937-54F3-377D-ACFE-6A6535480771}.Debug|x64.Build.0 = Debug|x64
+		{C5C97937-54F3-377D-ACFE-6A6535480771}.Release|x64.ActiveCfg = Release|x64
+		{C5C97937-54F3-377D-ACFE-6A6535480771}.Release|x64.Build.0 = Release|x64
+		{656EEA1D-0672-DA10-0627-B8AF304A9C8A}.Debug|x64.ActiveCfg = Debug|x64
+		{656EEA1D-0672-DA10-0627-B8AF304A9C8A}.Debug|x64.Build.0 = Debug|x64
+		{656EEA1D-0672-DA10-0627-B8AF304A9C8A}.Release|x64.ActiveCfg = Release|x64
+		{656EEA1D-0672-DA10-0627-B8AF304A9C8A}.Release|x64.Build.0 = Release|x64
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal

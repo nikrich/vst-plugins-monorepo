@@ -25,28 +25,28 @@ jobs:
 
       - name: Configure HungryGhostLimiter (Xcode generator)
         run: |
-          cmake -S HungryGhostLimiter -B HungryGhostLimiter/build -G Xcode
+          cmake -S src/HungryGhostLimiter -B src/HungryGhostLimiter/build -G Xcode
 
       - name: Build tests (Debug)
         run: |
-          cmake --build HungryGhostLimiter/build --config Debug --target HGLTests_DSP HGLTests_Proc
+          cmake --build src/HungryGhostLimiter/build --config Debug --target HGLTests_DSP HGLTests_Proc
 
       - name: Run tests (DSP)
         run: |
-          ./HungryGhostLimiter/build/HGLTests_DSP_artefacts/Debug/HGLTests_DSP
+          ./src/HungryGhostLimiter/build/HGLTests_DSP_artefacts/Debug/HGLTests_DSP
 
       - name: Run tests (Processor)
         run: |
-          ./HungryGhostLimiter/build/HGLTests_Proc_artefacts/Debug/HGLTests_Proc
+          ./src/HungryGhostLimiter/build/HGLTests_Proc_artefacts/Debug/HGLTests_Proc
 
       - name: Build plugin (Release)
         run: |
-          cmake --build HungryGhostLimiter/build --config Release --target HungryGhostLimiter_VST3
+          cmake --build src/HungryGhostLimiter/build --config Release --target HungryGhostLimiter_VST3
 
       - name: Package VST3 bundle (zip)
         run: |
           set -euo pipefail
-          ART_DIR="HungryGhostLimiter/build/HungryGhostLimiter_artefacts/Release/VST3"
+          ART_DIR="src/HungryGhostLimiter/build/HungryGhostLimiter_artefacts/Release/VST3"
           VST3_PATH=$(find "$ART_DIR" -type d -name "*.vst3" -print -quit)
           echo "Found: $VST3_PATH"
           [ -n "$VST3_PATH" ]

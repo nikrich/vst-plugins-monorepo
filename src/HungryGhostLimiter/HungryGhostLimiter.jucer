@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<JUCERPROJECT id="ECoTqP" name="HungryGhostLimiter" projectType="audioplug"
+              useAppConfig="0" addUsingNamespaceToJuceHeader="0" jucerFormatVersion="1">
+  <MAINGROUP id="pzXCLk" name="HungryGhostLimiter">
+    <GROUP id="{664B6E4B-27FA-58CC-5AD0-C349623B60C5}" name="Source">
+      <FILE id="RFamst" name="logo.png" compile="0" resource="1" file="../assets/logo.png"/>
+      <FILE id="LOGOIM" name="logo-img.png" compile="0" resource="1" file="../assets/logo-img.png"/>
+      <FILE id="lYkIXc" name="Threshold.cpp" compile="1" resource="0" file="Source/UI/Threshold.cpp"/>
+      <FILE id="QX9OUk" name="Threshold.h" compile="0" resource="0" file="Source/UI/Threshold.h"/>
+      <FILE id="NBnaaW" name="Meter.cpp" compile="1" resource="0" file="Source/UI/Meter.cpp"/>
+      <FILE id="rXaRMX" name="Meter.h" compile="0" resource="0" file="Source/UI/Meter.h"/>
+      <FILE id="VtINXc" name="Controls.cpp" compile="1" resource="0" file="Source/UI/Controls.cpp"/>
+      <FILE id="MKC8OS" name="Controls.h" compile="0" resource="0" file="Source/UI/Controls.h"/>
+      <FILE id="fHnlKx" name="PluginProcessor.cpp" compile="1" resource="0"
+            file="Source/PluginProcessor.cpp"/>
+      <FILE id="gTl7Ps" name="PluginProcessor.h" compile="0" resource="0"
+            file="Source/PluginProcessor.h"/>
+      <FILE id="JzqnLB" name="PluginEditor.cpp" compile="1" resource="0"
+            file="Source/PluginEditor.cpp"/>
+      <FILE id="StPo2z" name="PluginEditor.h" compile="0" resource="0" file="Source/PluginEditor.h"/>
+      <FILE id="NEW1" name="Ceiling.h" compile="0" resource="0" file="Source/UI/Ceiling.h"/>
+      <FILE id="NEW2" name="Layout.h" compile="0" resource="0" file="Source/UI/Layout.h"/>
+      <FILE id="NEW3" name="MeterColumn.h" compile="0" resource="0" file="Source/UI/columns/MeterColumn.h"/>
+      <FILE id="NEW4" name="ControlsColumn.h" compile="0" resource="0" file="Source/UI/columns/ControlsColumn.h"/>
+      <FILE id="NEW5" name="InputsColumn.h" compile="0" resource="0" file="Source/UI/columns/InputsColumn.h"/>
+      <FILE id="NEW6" name="InputTrimSection.h" compile="0" resource="0" file="Source/UI/InputTrimSection.h"/>
+      <FILE id="NEW7" name="ReleaseSection.h" compile="0" resource="0" file="Source/UI/ReleaseSection.h"/>
+      <FILE id="NEW8" name="AdvancedPanel.h" compile="0" resource="0" file="Source/UI/AdvancedPanel.h"/>
+      <FILE id="NEW11" name="LimiterDSP.h" compile="0" resource="0" file="Source/dsp/LimiterDSP.h"/>
+      <FILE id="NEW12" name="LimiterDSP.cpp" compile="1" resource="0" file="Source/dsp/LimiterDSP.cpp"/>
+      <FILE id="UIF1" name="ResourceResolver.h" compile="0" resource="0" file="Source/UI/Foundation/ResourceResolver.h"/>
+      <FILE id="UIF2" name="ResourceResolver.cpp" compile="1" resource="0" file="Source/UI/Foundation/ResourceResolver.cpp"/>
+      <FILE id="UIF3" name="Filmstrip.h" compile="0" resource="0" file="Source/UI/Foundation/Filmstrip.h"/>
+      <FILE id="UIF4" name="Filmstrip.cpp" compile="1" resource="0" file="Source/UI/Foundation/Filmstrip.cpp"/>
+      <FILE id="UIF5" name="Typography.h" compile="0" resource="0" file="Source/UI/Foundation/Typography.h"/>
+      <FILE id="UIF6" name="Typography.cpp" compile="1" resource="0" file="Source/UI/Foundation/Typography.cpp"/>
+      <FILE id="UIF7" name="Card.h" compile="0" resource="0" file="Source/UI/Foundation/Card.h"/>
+      <FILE id="UIF8" name="Card.cpp" compile="1" resource="0" file="Source/UI/Foundation/Card.cpp"/>
+    </GROUP>
+  </MAINGROUP>
+  <MODULES>
+    <MODULE id="juce_animation" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_audio_basics" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_audio_devices" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_audio_formats" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_audio_plugin_client" showAllCode="1" useLocalCopy="0"
+            useGlobalPath="1"/>
+    <MODULE id="juce_audio_processors" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_audio_utils" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_core" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_data_structures" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_dsp" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_events" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_graphics" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_gui_basics" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_gui_extra" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+  </MODULES>
+  <JUCEOPTIONS JUCE_STRICT_REFCOUNTEDPOINTER="1" JUCE_VST3_CAN_REPLACE_VST2="0"/>
+  <EXPORTFORMATS>
+    <VS2022 targetFolder="Builds/VisualStudio2022">
+      <CONFIGURATIONS>
+        <CONFIGURATION isDebug="1" name="Debug" targetName="HungryGhostLimiter"/>
+        <CONFIGURATION isDebug="0" name="Release" targetName="HungryGhostLimiter"/>
+      </CONFIGURATIONS>
+      <MODULEPATHS>
+        <MODULEPATH id="juce_animation" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_audio_basics" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_audio_devices" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_audio_formats" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_audio_plugin_client" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_audio_processors" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_audio_utils" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_core" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_data_structures" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_dsp" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_events" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_graphics" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_gui_basics" path="../../JUCE/modules"/>
+        <MODULEPATH id="juce_gui_extra" path="../../JUCE/modules"/>
+      </MODULEPATHS>
+    </VS2022>
+  </EXPORTFORMATS>
+</JUCERPROJECT>

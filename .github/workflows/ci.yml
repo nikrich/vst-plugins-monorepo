@@ -21,29 +21,29 @@ jobs:
 
       - name: Configure HungryGhostLimiter (Xcode generator)
         run: |
-          cmake -S HungryGhostLimiter -B HungryGhostLimiter/build -G Xcode
+          cmake -S src/HungryGhostLimiter -B src/HungryGhostLimiter/build -G Xcode
 
       - name: Build tests (Debug)
         run: |
-          cmake --build HungryGhostLimiter/build --config Debug --target HGLTests_DSP HGLTests_Proc
+          cmake --build src/HungryGhostLimiter/build --config Debug --target HGLTests_DSP HGLTests_Proc
 
       - name: Run tests (DSP)
         run: |
-          ./HungryGhostLimiter/build/HGLTests_DSP_artefacts/Debug/HGLTests_DSP
+          ./src/HungryGhostLimiter/build/HGLTests_DSP_artefacts/Debug/HGLTests_DSP
 
       - name: Run tests (Processor)
         run: |
-          ./HungryGhostLimiter/build/HGLTests_Proc_artefacts/Debug/HGLTests_Proc
+          ./src/HungryGhostLimiter/build/HGLTests_Proc_artefacts/Debug/HGLTests_Proc
 
       - name: Build plugin (Release)
         run: |
-          cmake --build HungryGhostLimiter/build --config Release --target HungryGhostLimiter_VST3
+          cmake --build src/HungryGhostLimiter/build --config Release --target HungryGhostLimiter_VST3
 
       - name: Upload plugin artefacts (VST3 Bundle)
         uses: actions/upload-artifact@v4
         with:
           name: HungryGhostLimiter-vst3-macos
           path: |
-            HungryGhostLimiter/build/HungryGhostLimiter_artefacts/Release/VST3/**/*.vst3
-            HungryGhostLimiter/build/HungryGhostLimiter_artefacts/Release/VST3/**/*.vst3/**
+            src/HungryGhostLimiter/build/HungryGhostLimiter_artefacts/Release/VST3/**/*.vst3
+            src/HungryGhostLimiter/build/HungryGhostLimiter_artefacts/Release/VST3/**/*.vst3/**
 
