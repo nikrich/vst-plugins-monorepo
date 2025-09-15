@@ -1,0 +1,12 @@
+{
+	"InstallScripts" : 
+	[
+		"/Users/jannikrichter/development/hungry-ghost/vst-plugins-monorepo/src/HungryGhostLimiter/build/cmake_install.cmake",
+		"/Users/jannikrichter/development/hungry-ghost/vst-plugins-monorepo/src/HungryGhostLimiter/build/JUCE/cmake_install.cmake",
+		"/Users/jannikrichter/development/hungry-ghost/vst-plugins-monorepo/src/HungryGhostLimiter/build/JUCE/modules/cmake_install.cmake",
+		"/Users/jannikrichter/development/hungry-ghost/vst-plugins-monorepo/src/HungryGhostLimiter/build/JUCE/extras/Build/cmake_install.cmake",
+		"/Users/jannikrichter/development/hungry-ghost/vst-plugins-monorepo/src/HungryGhostLimiter/build/JUCE/extras/Build/juceaide/cmake_install.cmake",
+		"/Users/jannikrichter/development/hungry-ghost/vst-plugins-monorepo/src/HungryGhostLimiter/build/CommonUI/cmake_install.cmake"
+	],
+	"Parallel" : false
+}
