@@ -4,6 +4,9 @@
 
 A **transparent, modern true-peak limiter** for JUCE/Projucer.
 
+<img width="832" height="611" alt="image" src="https://github.com/user-attachments/assets/fa77b3ad-6bf6-4680-a191-31f29abe2d4c" />
+
+
 ## 🎛 Highlights
 
 - **True-peak safe**: prevents inter-sample overs via internal **4×/8× oversampling**.  
