@@ -2,6 +2,7 @@
 #include <juce_gui_extra/juce_gui_extra.h>
 #include "../Layout.h"
 #include "../Meter.h"
+#include <Foundation/Typography.h>
 
 // A column to show a label and the attenuation meter under it.
 class MeterColumn : public juce::Component {
@@ -13,8 +14,11 @@ public:
         label.setText("ATTEN", juce::dontSendNotification);
         label.setJustificationType(juce::Justification::centred);
         label.setInterceptsMouseClicks(false, false);
-        label.setColour(juce::Label::textColourId, juce::Colours::white.withAlpha(0.95f));
-        label.setFont(juce::Font(juce::FontOptions(14.0f, juce::Font::bold)));
+        // Standardize typography via Typography helper
+        ui::foundation::Typography::apply(label,
+                                          ui::foundation::Typography::Style::Title,
+                                          juce::Colours::white.withAlpha(0.95f),
+                                          juce::Justification::centred);
         addAndMakeVisible(label);
 
         addAndMakeVisible(meter);

@@ -1,9 +1,11 @@
 #pragma once
 #include <juce_gui_extra/juce_gui_extra.h>
 #include "Layout.h"
-#include "../PluginProcessor.h"
-#include "../styling/Theme.h"
+#include <juce_audio_processors/juce_audio_processors.h>
+#include "../Styling/Theme.h"
 #include <BinaryData.h>
+#include <Foundation/ResourceResolver.h>
+#include <Foundation/Filmstrip.h>
 #include "KitStripSlider.h"
 
 // Reusable stereo linked vertical bars (L/R) with a title and Link toggle.
@@ -18,50 +20,26 @@ public:
         void paint(juce::Graphics& g) override {
             auto r = getLocalBounds().toFloat();
 
-            // Load UI kit 03 slider filmstrip (sl-final.png) once
-            static juce::Image strip;
-            static int frames = 0; static bool vertical = true; static int frameSize = 0;
-            if (!strip.isValid())
+            // Load UI kit 03 slider filmstrip (sl-final.png) once using ResourceResolver + Filmstrip
+            static ui::foundation::Filmstrip film;
+            if (!film.isValid())
             {
-                auto tryNamed = [](const char* name) -> juce::Image
-                {
-                    int sz = 0; if (const void* data = BinaryData::getNamedResource(name, sz))
-                        return juce::ImageFileFormat::loadFrom(data, (size_t)sz);
-                    return {};
-                };
-                strip = tryNamed("slfinal_png");
-                if (!strip.isValid()) strip = tryNamed("sl-final.png");
-
-                if (strip.isValid())
-                {
-                    const int w = strip.getWidth();
-                    const int h = strip.getHeight();
-                    if (w > 0 && h % w == 0) { vertical = true; frameSize = w; frames = h / w; }
-                    else if (h > 0 && w % h == 0) { vertical = false; frameSize = h; frames = w / h; }
-                    else { frameSize = juce::jmin(w, h); frames = frameSize > 0 ? (vertical ? h / frameSize : w / frameSize) : 1; }
-                    if (frames <= 1) frames = 128; // default
-                }
+                auto img = ui::foundation::ResourceResolver::loadImageByNames({
+                    "slfinal_png",
+                    "sl-final.png",
+                    "assets/ui/kit-03/slider/sl-final.png"
+                });
+                film = ui::foundation::Filmstrip(img, 128, ui::foundation::Filmstrip::Orientation::Vertical);
             }
 
-            if (strip.isValid() && frames > 1 && frameSize > 0)
+            if (film.isValid())
             {
                 // Choose source slider based on handle mode (Both uses left)
                 const juce::Slider& s = (mode == Mode::Right ? parent.sliderR : parent.sliderL);
                 const auto range = s.getRange();
                 const double prop = range.getLength() > 0.0 ? (s.getValue() - range.getStart()) / range.getLength() : 0.0;
-                const int idx = juce::jlimit(0, frames - 1, (int)std::round(prop * (frames - 1)));
-                const int sx = vertical ? 0 : idx * frameSize;
-                const int sy = vertical ? idx * frameSize : 0;
-
                 // Preserve frame aspect inside handle bounds (contain)
-                const float scale = juce::jmin(r.getWidth() / (float)frameSize, r.getHeight() / (float)frameSize);
-                const float dw = frameSize * scale;
-                const float dh = frameSize * scale;
-                const float dx = r.getX() + (r.getWidth() - dw) * 0.5f;
-                const float dy = r.getY() + (r.getHeight() - dh) * 0.5f;
-                g.drawImage(strip,
-                            (int)dx, (int)dy, (int)dw, (int)dh,
-                            sx, sy, frameSize, frameSize);
+                film.drawNormalized(g, r, (float)prop, true);
             }
             else
             {
@@ -79,7 +57,7 @@ public:
         StereoLinkedBars& parent;
         Mode mode;
     };
-    using APVTS = HungryGhostLimiterAudioProcessor::APVTS;
+    using APVTS = juce::AudioProcessorValueTreeState;
 
     StereoLinkedBars(APVTS& apvts,
                      juce::String titleText,
@@ -340,24 +318,20 @@ private:
         static float stripAspect = 0.0f; // height / width per frame
         if (stripAspect <= 0.0f)
         {
-            auto tryNamed = [](const char* name) -> juce::Image
-            {
-                int sz = 0; if (const void* data = BinaryData::getNamedResource(name, sz))
-                    return juce::ImageFileFormat::loadFrom(data, (size_t)sz);
-                return {};
-            };
-            auto img = tryNamed("slfinal_png");
-            if (!img.isValid()) img = tryNamed("sl-final.png");
+            auto img = ui::foundation::ResourceResolver::loadImageByNames({
+                "slfinal_png",
+                "sl-final.png",
+                "assets/ui/kit-03/slider/sl-final.png"
+            });
             if (img.isValid())
             {
                 const int w = img.getWidth();
                 const int h = img.getHeight();
                 bool vertical = (h > w);
                 int frameW = vertical ? w : h;
-                int frames = 0;
-                if (vertical && w > 0 && h % w == 0) frames = h / w; else if (!vertical && h > 0 && w % h == 0) frames = w / h; else frames = 128;
+                int frames = vertical && w > 0 && h % w == 0 ? h / w : (!vertical && h > 0 && w % h == 0 ? w / h : 128);
                 int frameH = vertical ? (h / juce::jmax(1, frames)) : h;
-                if (frameW > 0 && frameH > 0) stripAspect = (float)frameH / (float)frameW; else stripAspect = 1.0f;
+                stripAspect = (frameW > 0 && frameH > 0) ? (float)frameH / (float)frameW : 1.0f;
             }
             else stripAspect = 1.0f;
         }

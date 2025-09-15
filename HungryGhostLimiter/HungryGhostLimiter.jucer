@@ -35,6 +35,14 @@
       <FILE id="NEW10" name="Theme.h" compile="0" resource="0" file="Source/Styling/Theme.h"/>
       <FILE id="NEW11" name="LimiterDSP.h" compile="0" resource="0" file="Source/dsp/LimiterDSP.h"/>
       <FILE id="NEW12" name="LimiterDSP.cpp" compile="1" resource="0" file="Source/dsp/LimiterDSP.cpp"/>
+      <FILE id="UIF1" name="ResourceResolver.h" compile="0" resource="0" file="Source/UI/Foundation/ResourceResolver.h"/>
+      <FILE id="UIF2" name="ResourceResolver.cpp" compile="1" resource="0" file="Source/UI/Foundation/ResourceResolver.cpp"/>
+      <FILE id="UIF3" name="Filmstrip.h" compile="0" resource="0" file="Source/UI/Foundation/Filmstrip.h"/>
+      <FILE id="UIF4" name="Filmstrip.cpp" compile="1" resource="0" file="Source/UI/Foundation/Filmstrip.cpp"/>
+      <FILE id="UIF5" name="Typography.h" compile="0" resource="0" file="Source/UI/Foundation/Typography.h"/>
+      <FILE id="UIF6" name="Typography.cpp" compile="1" resource="0" file="Source/UI/Foundation/Typography.cpp"/>
+      <FILE id="UIF7" name="Card.h" compile="0" resource="0" file="Source/UI/Foundation/Card.h"/>
+      <FILE id="UIF8" name="Card.cpp" compile="1" resource="0" file="Source/UI/Foundation/Card.cpp"/>
     </GROUP>
   </MAINGROUP>
   <MODULES>

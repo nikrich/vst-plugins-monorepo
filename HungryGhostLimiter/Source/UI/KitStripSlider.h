@@ -1,6 +1,7 @@
 #pragma once
 #include <juce_gui_extra/juce_gui_extra.h>
 #include <BinaryData.h>
+#include <Foundation/ResourceResolver.h>
 
 // A self-contained vertical slider that renders a UI kit filmstrip (sl-final.png)
 // as the entire bar (per frame), while delegating input/values to an inner Slider.
@@ -16,15 +17,12 @@ public:
 
         slider.onValueChange = [this]{ repaint(); };
 
-        auto tryNamed = [](const char* name) -> juce::Image
-        {
-            int sz = 0; if (const void* data = BinaryData::getNamedResource(name, sz))
-                return juce::ImageFileFormat::loadFrom(data, (size_t)sz);
-            return {};
-        };
-        
-        strip = tryNamed("slfinal_png");
-        if (!strip.isValid()) strip = tryNamed("sl-final.png");
+        // Use ResourceResolver to locate the filmstrip robustly
+        strip = ui::foundation::ResourceResolver::loadImageByNames({
+            "slfinal_png",
+            "sl-final.png",
+            "assets/ui/kit-03/slider/sl-final.png"
+        });
 
         if (strip.isValid())
         {

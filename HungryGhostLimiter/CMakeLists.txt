@@ -11,12 +11,17 @@ set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64" CACHE STRING "")
 
 # Pull in vendored JUCE
 add_subdirectory(JUCE)
+# Pull in shared CommonUI library
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../CommonUI ${CMAKE_CURRENT_BINARY_DIR}/CommonUI)
 
 # Collect sources
 file(GLOB_RECURSE HGL_SOURCES CONFIGURE_DEPENDS
     Source/*.cpp
     Source/*.h
 )
+# Exclude legacy local foundation sources; use CommonUI headers instead
+list(FILTER HGL_SOURCES EXCLUDE REGEX "/Source/ui/foundation/.*\\.cpp$")
+list(FILTER HGL_SOURCES EXCLUDE REGEX "/Source/UI/Foundation/.*\\.cpp$")
 
 # Embed assets (fonts/logo live one level up from this dir)
 set(ASSETS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../assets")
@@ -61,6 +66,7 @@ target_compile_definitions(HungryGhostLimiter PRIVATE JUCE_VST3_CAN_REPLACE_VST2
 target_link_libraries(HungryGhostLimiter
     PRIVATE
         HGLBinaryData
+        CommonUI
         juce::juce_audio_utils
         juce::juce_audio_processors
         juce::juce_dsp

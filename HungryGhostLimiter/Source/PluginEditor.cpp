@@ -1,5 +1,6 @@
 #include "PluginEditor.h"
 #include <BinaryData.h>
+#include <Foundation/ResourceResolver.h>
 
 HungryGhostLimiterAudioProcessorEditor::HungryGhostLimiterAudioProcessorEditor(HungryGhostLimiterAudioProcessor& p)
     : juce::AudioProcessorEditor(&p)
@@ -38,17 +39,15 @@ HungryGhostLimiterAudioProcessorEditor::HungryGhostLimiterAudioProcessorEditor(H
     addAndMakeVisible(meterCol);
     addAndMakeVisible(outputCol);
 
-    // Load kit-03 background-03 into memory (BinaryData)
+    // Load kit-03 background-03 into memory via ResourceResolver
     {
-        auto tryNamed = [](const char* name) -> juce::Image
-        {
-            int sz = 0; if (const void* data = BinaryData::getNamedResource(name, sz))
-                return juce::ImageFileFormat::loadFrom(data, (size_t)sz);
-            return {};
-        };
-        bgCardImage = tryNamed("background03_png");
-        if (!bgCardImage.isValid()) bgCardImage = tryNamed("background_03_png");
-        if (!bgCardImage.isValid()) bgCardImage = tryNamed("background-03.png");
+        using ui::foundation::ResourceResolver;
+        bgCardImage = ResourceResolver::loadImageByNames({
+            "background03_png",
+            "background_03_png",
+            "background-03.png",
+            "assets/ui/kit-03/background/background-03.png"
+        });
     }
 
     startTimerHz(30);
