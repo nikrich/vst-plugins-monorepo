@@ -166,7 +166,12 @@ void HungryGhostLimiterAudioProcessorEditor::resized()
 
 void HungryGhostLimiterAudioProcessorEditor::timerCallback()
 {
-    meterCol.setDb(proc.getSmoothedAttenDb()); // feed raw or lightly-smoothed dB
+    // Map attenuation in dB (0..12/24) to meter dBFS range [-60..0], where 0 attenuation -> -60 dB (empty)
+    const float atten = proc.getSmoothedAttenDb();
+    const float capped = juce::jlimit(0.0f, 12.0f, atten); // visualize up to 12 dB
+    const float mappedDb = -60.0f + (capped / 12.0f) * 60.0f; // -60..0 dBFS
+    meterCol.setDb(mappedDb);
+
     // Update output live levels (dBFS) -> Output column smooths and displays
     outputCol.setLevelsDbFs(proc.getOutDbL(), proc.getOutDbR());
 }
