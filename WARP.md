@@ -13,7 +13,7 @@ Repository overview
   - Auto-generated artefacts during builds:
     - src/HungryGhostLimiter/build/** and src/HungryGhostLimiter/HungryGhostLimiter_artefacts/**
     - Some JUCE-generated JuceLibraryCode for BinaryData and headers — do not edit
-  - Vendored JUCE: src/HungryGhostLimiter/JUCE/** (JUCE 8; provides CMake and extras like Projucer, AudioPluginHost)
+  - Vendored JUCE: vendor/JUCE/** (JUCE 8; provides CMake and extras like Projucer, AudioPluginHost)
   - Assets: assets/** (fonts, logo, UI filmstrips)
   - assets/ui/kit-03 contains the UI elements
 
@@ -50,13 +50,13 @@ Build HungryGhostLimiter with CMake
 
 One-time: build JUCE extras (Projucer, AudioPluginHost)
 - Use JUCE’s CMake with the Xcode generator (recommended on macOS):
-  - From src/HungryGhostLimiter/ (project dir)
+  - From repo root (recommended):
     - Configure (build extras):
-      cmake -S JUCE -B ../../build/juce -G Xcode -DJUCE_BUILD_EXTRAS=ON
+      cmake -S vendor/JUCE -B build/juce -G Xcode -DJUCE_BUILD_EXTRAS=ON
     - Build Projucer + AudioPluginHost (Release):
-      cmake --build ../../build/juce --config Release --target Projucer AudioPluginHost
+      cmake --build build/juce --config Release --target Projucer AudioPluginHost
   - The Projucer CLI lives inside the built .app bundle. Find it with:
-      PROJUCER=$(find ../../build/juce -type f -name Projucer -path "*/Projucer_artefacts/*/Projucer.app/Contents/MacOS/*" -print -quit); echo "$PROJUCER"
+      PROJUCER=$(find build/juce -type f -name Projucer -path "*/Projucer_artefacts/*/Projucer.app/Contents/MacOS/*" -print -quit); echo "$PROJUCER"
 
 Generate exporter projects (Xcode) with Projucer (optional)
 - The repo does not ship exporter projects. Generate them from the .jucer if you want IDE projects:
@@ -76,7 +76,7 @@ Install and run (local macOS)
 
 Test in JUCE AudioPluginHost (built above)
 - Launch the host:
-    HOST_APP=$(find ../../build/juce -type d -name "AudioPluginHost.app" -path "*/AudioPluginHost_artefacts/*/Release/*" -print -quit)
+    HOST_APP=$(find build/juce -type d -name "AudioPluginHost.app" -path "*/AudioPluginHost_artefacts/*/Release/*" -print -quit)
     open "$HOST_APP"
 - In the host, rescan your plugin folders (e.g., ~/Library/Audio/Plug-Ins/VST3) and insert Hungry Ghost Limiter to test.
 
