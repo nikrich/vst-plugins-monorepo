@@ -8,7 +8,7 @@
       "type": "shell",
       "command": "cmake -S . -B build/debug -G \"Unix Makefiles\" -DCMAKE_BUILD_TYPE=Debug",
       "options": {
-        "cwd": "${workspaceFolder}/HungryGhostLimiter"
+        "cwd": "${workspaceFolder}/src/HungryGhostLimiter"
       },
       "problemMatcher": "$gcc"
     },
@@ -17,7 +17,7 @@
       "type": "shell",
       "command": "cmake --build build/debug -j 8",
       "options": {
-        "cwd": "${workspaceFolder}/HungryGhostLimiter"
+        "cwd": "${workspaceFolder}/src/HungryGhostLimiter"
       },
       "dependsOn": [
         "cmake: limiter configure (Debug)"
@@ -29,7 +29,7 @@
       "type": "shell",
       "command": "cmake -S . -B build/release -G \"Unix Makefiles\" -DCMAKE_BUILD_TYPE=Release",
       "options": {
-        "cwd": "${workspaceFolder}/HungryGhostLimiter"
+        "cwd": "${workspaceFolder}/src/HungryGhostLimiter"
       },
       "problemMatcher": "$gcc"
     },
@@ -38,10 +38,31 @@
       "type": "shell",
       "command": "cmake --build build/release -j 8",
       "options": {
-        "cwd": "${workspaceFolder}/HungryGhostLimiter"
+        "cwd": "${workspaceFolder}/src/HungryGhostLimiter"
       },
       "dependsOn": [
         "cmake: limiter configure (Release)"
+      ],
+      "problemMatcher": "$gcc"
+    },
+    {
+      "label": "cmake: host configure (Release)",
+      "type": "shell",
+      "command": "cmake -S JUCE -B ../../build/juce -G \"Unix Makefiles\" -DCMAKE_BUILD_TYPE=Release -DJUCE_BUILD_EXTRAS=ON",
+      "options": {
+        "cwd": "${workspaceFolder}/src/HungryGhostLimiter"
+      },
+      "problemMatcher": "$gcc"
+    },
+    {
+      "label": "cmake: limiter build AudioPluginHost (Release)",
+      "type": "shell",
+      "command": "cmake --build ../../build/juce -j 8 --target AudioPluginHost",
+      "options": {
+        "cwd": "${workspaceFolder}/src/HungryGhostLimiter"
+      },
+      "dependsOn": [
+        "cmake: host configure (Release)"
       ],
       "problemMatcher": "$gcc"
     },
