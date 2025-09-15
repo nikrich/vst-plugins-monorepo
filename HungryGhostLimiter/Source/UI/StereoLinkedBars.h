@@ -1,8 +1,10 @@
 #pragma once
+// Deprecated: use <Controls/StereoLinkedBars.h> from CommonUI instead.
+#include <Controls/StereoLinkedBars.h>
 #include <juce_gui_extra/juce_gui_extra.h>
 #include "Layout.h"
 #include <juce_audio_processors/juce_audio_processors.h>
-#include "../Styling/Theme.h"
+#include <Styling/Theme.h>
 #include <BinaryData.h>
 #include <Foundation/ResourceResolver.h>
 #include <Foundation/Filmstrip.h>

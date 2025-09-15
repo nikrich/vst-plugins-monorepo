@@ -22,6 +22,7 @@ file(GLOB_RECURSE HGL_SOURCES CONFIGURE_DEPENDS
 # Exclude legacy local foundation sources; use CommonUI headers instead
 list(FILTER HGL_SOURCES EXCLUDE REGEX "/Source/ui/foundation/.*\\.cpp$")
 list(FILTER HGL_SOURCES EXCLUDE REGEX "/Source/UI/Foundation/.*\\.cpp$")
+list(FILTER HGL_SOURCES EXCLUDE REGEX "/Source/[sS]tyling/.*\\.cpp$")
 
 # Embed assets (fonts/logo live one level up from this dir)
 set(ASSETS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../assets")

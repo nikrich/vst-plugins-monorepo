@@ -1,6 +1,6 @@
 #pragma once
 #include <juce_gui_extra/juce_gui_extra.h>
-#include "../styling/Theme.h"
+#include <Styling/Theme.h>
 #include "Layout.h"
 
 // Read-only stereo output meters (post-processing dBFS), with title and numeric readouts.

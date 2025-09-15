@@ -1,6 +1,6 @@
 #pragma once
 #include <juce_gui_extra/juce_gui_extra.h>
-#include "StereoLinkedBars.h"
+#include <Controls/StereoLinkedBars.h>
 #include "../PluginProcessor.h"
 
 // Input section, using the same shared UI as Threshold and Ceiling

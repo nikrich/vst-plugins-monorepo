@@ -2,7 +2,7 @@
 #include <juce_gui_extra/juce_gui_extra.h>
 #include "Layout.h"
 #include "../PluginProcessor.h"
-#include "../styling/LookAndFeels.h"
+#include <Styling/LookAndFeels.h>
 
 class AdvancedPanel : public juce::Component {
 public:
