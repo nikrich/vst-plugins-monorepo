@@ -25,6 +25,9 @@ public:
         targetDb = juce::jlimit(-60.0f, 0.0f, db);
     }
 
+    // If true, the meter fills from top to bottom. If false, bottom to top.
+    void setTopDown(bool b) { topDown = b; repaint(); }
+
     void resized() override { }
 
     void paint(juce::Graphics& g) override
@@ -42,8 +45,13 @@ public:
         const float norm = juce::jlimit(0.0f, 1.0f, (dispDb + 60.0f) / 60.0f);
         if (norm > 0.001f)
         {
-            auto fill = bf.withY(bf.getBottom() - bf.getHeight() * norm)
-                          .withHeight(bf.getHeight() * norm);
+            juce::Rectangle<float> fill;
+            if (topDown)
+                fill = bf.withHeight(bf.getHeight() * norm);
+            else
+                fill = bf.withY(bf.getBottom() - bf.getHeight() * norm)
+                         .withHeight(bf.getHeight() * norm);
+
             // Simple green->red gradient for the meter
             juce::ColourGradient fg(juce::Colours::limegreen, fill.getX(), fill.getBottom(), juce::Colours::red, fill.getX(), fill.getY(), false);
             g.setGradientFill(fg);
@@ -62,6 +70,7 @@ private:
         repaint();
     }
 
+    bool  topDown { false };
     float targetDb { -60.0f };
     float dispDb   { -60.0f };
     float atkMs { 40.0f }, relMs { 160.0f };

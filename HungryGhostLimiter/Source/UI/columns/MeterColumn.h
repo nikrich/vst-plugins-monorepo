@@ -12,6 +12,8 @@ public:
     {
         // Title styling to match other columns
         label.setText("ATTEN", juce::dontSendNotification);
+        // Attenuation should fill top-down (more reduction -> more fill)
+        meter.setTopDown(true);
         label.setJustificationType(juce::Justification::centred);
         label.setInterceptsMouseClicks(false, false);
         // Standardize typography via Typography helper
