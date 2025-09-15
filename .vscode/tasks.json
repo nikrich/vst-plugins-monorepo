@@ -48,7 +48,7 @@
     {
       "label": "cmake: host configure (Release)",
       "type": "shell",
-      "command": "cmake -S JUCE -B ../../build/juce -G \"Unix Makefiles\" -DCMAKE_BUILD_TYPE=Release -DJUCE_BUILD_EXTRAS=ON",
+      "command": "cmake -S ../../vendor/JUCE -B ../../build/juce -G \"Unix Makefiles\" -DCMAKE_BUILD_TYPE=Release -DJUCE_BUILD_EXTRAS=ON",
       "options": {
         "cwd": "${workspaceFolder}/src/HungryGhostLimiter"
       },

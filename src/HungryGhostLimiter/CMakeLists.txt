@@ -9,8 +9,8 @@ endif()
 # Universal build example (optional); harmless if ignored by Makefiles
 set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64" CACHE STRING "")
 
-# Pull in vendored JUCE
-add_subdirectory(JUCE)
+# Pull in vendored JUCE (moved to repo-level vendor/JUCE for reuse)
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../../vendor/JUCE ${CMAKE_CURRENT_BINARY_DIR}/JUCE)
 # Pull in shared CommonUI library
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../CommonUI ${CMAKE_CURRENT_BINARY_DIR}/CommonUI)
 
