@@ -43,4 +43,7 @@
 .vs
 /*/Builds
 /*/build
+# Ignore build folders anywhere in the tree
+**/build/
+**/Builds/
 .DS_Store

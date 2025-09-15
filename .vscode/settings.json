@@ -1,0 +1,9 @@
+{
+  "files.exclude": {
+    "**/JUCE": true,
+    "**/JuceLibraryCode": true,
+    "**/build": true,
+    "**/Builds": true
+  }
+}
+
