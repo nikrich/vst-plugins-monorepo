@@ -12,8 +12,8 @@
 #include "ui/columns/MeterColumn.h"
 #include "ui/columns/OutputColumn.h"
 #include "ui/sections/LogoHeader.h"
-#include "UI/AdvancedPanel.h"
-#include "BinaryData.h"
+#include "ui/AdvancedPanel.h"
+#include <BinaryData.h>
 #include "styling/Theme.h"
 class HungryGhostLimiterAudioProcessorEditor
     : public juce::AudioProcessorEditor
@@ -45,7 +45,10 @@ private:
     StereoCeiling   ceiling;
     ControlsColumn  controlsCol;
     MeterColumn     meterCol;
-    OutputColumn    outputCol;
+    OutputColumn     outputCol;
+
+    // Cached UI background image (kit-03 background-03)
+    juce::Image      bgCardImage;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(HungryGhostLimiterAudioProcessorEditor)
 };

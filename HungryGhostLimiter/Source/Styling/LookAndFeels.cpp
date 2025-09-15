@@ -1,5 +1,5 @@
 #include "LookAndFeels.h"
-#include "BinaryData.h"
+#include <BinaryData.h>
 
 // ----- VibeLNF -----
 VibeLNF::VibeLNF()
@@ -32,8 +32,10 @@ void PillVSliderLNF::drawLinearSlider(juce::Graphics& g, int x, int y, int w, in
 {
     juce::ignoreUnused(sliderPos, minPos, maxPos, style);
 
+    // Use fixed horizontal padding so track width is consistent across sliders
+    const float sidePad = 8.0f; // px, slightly narrower to fit columns consistently
     auto bounds = juce::Rectangle<float>(x, y, (float)w, (float)h)
-        .reduced(juce::jmax(w * 0.45f, 6.0f), 6.0f);
+        .reduced(sidePad, 6.0f);
     bounds.removeFromBottom(4.0f);
     const float radius = bounds.getWidth() * 0.5f;
 
@@ -64,9 +66,5 @@ void PillVSliderLNF::drawLinearSlider(juce::Graphics& g, int x, int y, int w, in
         g.drawRoundedRectangle(bounds, radius, 1.0f);
     }
 
-    // value text at bottom of the slider
-    auto textArea = juce::Rectangle<int>(x, y, w, h).reduced(4).removeFromBottom(22);
-    g.setColour(Style::theme().text);
-    g.setFont(juce::Font(juce::FontOptions(12.0f)));
-    g.drawFittedText(s.getTextFromValue(s.getValue()), textArea, juce::Justification::centred, 1);
+    // no inline value text: let containers place any numeric labels below the slider if desired
 }

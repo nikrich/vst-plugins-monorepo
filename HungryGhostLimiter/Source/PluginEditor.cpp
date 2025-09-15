@@ -1,5 +1,5 @@
 #include "PluginEditor.h"
-#include "BinaryData.h"
+#include <BinaryData.h>
 
 HungryGhostLimiterAudioProcessorEditor::HungryGhostLimiterAudioProcessorEditor(HungryGhostLimiterAudioProcessor& p)
     : juce::AudioProcessorEditor(&p)
@@ -15,16 +15,21 @@ HungryGhostLimiterAudioProcessorEditor::HungryGhostLimiterAudioProcessorEditor(H
     setLookAndFeel(&lnf);
     setResizable(false, false);
     setOpaque(true);
-    setSize(Layout::kTotalColsWidthPx + 2 * Layout::kPaddingPx, 640);
+    setSize(Layout::kTotalColsWidthPx + 2 * Layout::kPaddingPx, 520);
 
     // Sections visible
     addAndMakeVisible(logoHeader);
-    addAndMakeVisible(advanced);
+    // addAndMakeVisible(advanced);
 
     // Skin Input, Threshold & Ceiling with the pill L&F
     inputsCol.setSliderLookAndFeel(&pillLNF);
     threshold.setSliderLookAndFeel(&pillLNF);
     ceiling.setSliderLookAndFeel(&pillLNF);
+
+    // Apply neon toggle style to link buttons
+    inputsCol.getInput().setLinkLookAndFeel(&neonToggleLNF);
+    threshold.setLinkLookAndFeel(&neonToggleLNF);
+    ceiling.setLinkLookAndFeel(&neonToggleLNF);
     outputCol.setSliderLookAndFeel(&pillLNF);
     addAndMakeVisible(inputsCol);
     addAndMakeVisible(threshold);
@@ -32,6 +37,19 @@ HungryGhostLimiterAudioProcessorEditor::HungryGhostLimiterAudioProcessorEditor(H
     addAndMakeVisible(controlsCol);
     addAndMakeVisible(meterCol);
     addAndMakeVisible(outputCol);
+
+    // Load kit-03 background-03 into memory (BinaryData)
+    {
+        auto tryNamed = [](const char* name) -> juce::Image
+        {
+            int sz = 0; if (const void* data = BinaryData::getNamedResource(name, sz))
+                return juce::ImageFileFormat::loadFrom(data, (size_t)sz);
+            return {};
+        };
+        bgCardImage = tryNamed("background03_png");
+        if (!bgCardImage.isValid()) bgCardImage = tryNamed("background_03_png");
+        if (!bgCardImage.isValid()) bgCardImage = tryNamed("background-03.png");
+    }
 
     startTimerHz(30);
 }
@@ -46,24 +64,51 @@ void HungryGhostLimiterAudioProcessorEditor::paint(juce::Graphics& g)
     auto& th = Style::theme();
     g.fillAll(th.bg);
 
-    // subtle panel behind meter column (exact match with layout)
-    const auto padded = getLocalBounds().reduced(Layout::kPaddingPx);
-    const auto content = padded.withTrimmedTop(Layout::kHeaderHeightPx).withTrimmedBottom(Layout::kFooterHeightPx);
+    auto padded = getLocalBounds().reduced(Layout::kPaddingPx);
 
-    const int required = Layout::kTotalColsWidthPx;
-    auto rowBounds = content.withWidth(juce::jmin(required, content.getWidth()));
-    rowBounds.setX(content.getX() + (content.getWidth() - rowBounds.getWidth()) / 2);
+    // Footer background (advanced section)
+    auto footer = padded.removeFromBottom(Layout::kFooterHeightPx);
+    g.setColour(juce::Colour(0xFF0C0C0C)); // #0C0C0C
+    g.fillRect(footer);
 
-    // meter area is column 5 from right side when Output exists; easier: compute by subtracting right output width + gaps
-    auto tmp = rowBounds;
-    tmp.removeFromRight(Layout::kColWidthOutputPx); // output col
-    tmp.removeFromRight(Layout::kColGapPx);         // gap between meter and output
-    auto meterArea = tmp.removeFromRight(Layout::kColWidthMeterPx);
+    // Main card (logo + main columns)
+    auto mainCard = padded; // remaining area after removing footer
 
-    juce::DropShadow ds(juce::Colours::black.withAlpha(0.45f), 18, {});
-    ds.drawForRectangle(g, meterArea.reduced(4));
-    g.setColour(th.panel);
-    g.fillRoundedRectangle(meterArea.reduced(4).toFloat(), 12.0f);
+    // If no background image, draw the card with drop shadow as before
+    auto radius = Style::theme().borderRadius;
+    auto bw     = Style::theme().borderWidth;
+    if (!bgCardImage.isValid())
+    {
+        juce::DropShadow ds(juce::Colours::black.withAlpha(0.55f), 22, {});
+        ds.drawForRectangle(g, mainCard); // draw shadow around card
+
+        g.setColour(juce::Colour(0xFF301935));
+        g.fillRoundedRectangle(mainCard.toFloat(), radius);
+
+        // Border
+        g.setColour(juce::Colours::white.withAlpha(0.12f));
+        g.drawRoundedRectangle(mainCard.toFloat(), radius, bw);
+    }
+    else
+    {
+        // Fill the entire plugin area with the background image
+        auto bgRect = getLocalBounds().toFloat();
+
+        const float srcW = (float) bgCardImage.getWidth();
+        const float srcH = (float) bgCardImage.getHeight();
+        const float dstW = bgRect.getWidth();
+        const float dstH = bgRect.getHeight();
+
+        // Cover-fit so the image fills the rect completely (may crop on one axis)
+        const float scale = juce::jmax(dstW / srcW, dstH / srcH);
+        const float w = srcW * scale;
+        const float h = srcH * scale;
+        const float x = bgRect.getX() + (dstW - w) * 0.5f;
+        const float y = bgRect.getY() + (dstH - h) * 0.5f;
+        juce::Rectangle<float> dst(x, y, w, h);
+
+        g.drawImage(bgCardImage, dst);
+    }
 }
 
 void HungryGhostLimiterAudioProcessorEditor::resized()
@@ -75,8 +120,8 @@ void HungryGhostLimiterAudioProcessorEditor::resized()
     logoHeader.setBounds(header);
 
     // --- Footer (Advanced Controls) ---
-    auto footer = bounds.removeFromBottom(Layout::kFooterHeightPx);
-    advanced.setBounds(footer);
+    // auto footer = bounds.removeFromBottom(Layout::kFooterHeightPx);
+    // advanced.setBounds(footer);
 
     // --- Main content: 6 columns in a Grid ---
     const int required = Layout::kTotalColsWidthPx;

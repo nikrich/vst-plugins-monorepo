@@ -10,7 +10,8 @@ Repository overview
   - Auto-generated glue: HungryGhostLimiter/JuceLibraryCode/** (do not edit directly)
   - Vendored JUCE: HungryGhostLimiter/JUCE/** (JUCE 8; provides CMake and extras like Projucer, AudioPluginHost)
   - Assets: assets/** (fonts, logo)
-- There is no existing WARP.md, no tests, and no committed exporter/build projects. You must generate them.
+  - There is no existing WARP.md, no tests, and no committed exporter/build projects. You must generate them.
+  - assets/ui/kit-03 contains all of the ui elements
 
 Prerequisites (macOS)
 - Xcode with command-line tools: xcode-select -p (install if missing)
@@ -96,6 +97,15 @@ Gotchas and tips specific to this repo
 - If xcodebuild can’t find a scheme after resave, open the generated .xcodeproj in Xcode once to let it index, or pass -alltargets.
 - If CMake defaults to Ninja and fails (no Ninja installed), force the Xcode generator: -G Xcode
 - True-peak limiting depends on oversampling; ensure Release builds (with optimizations) when evaluating performance/quality.
+
+UI Overview:
+- Big Knob Animation 100 Frames 310*640 px.
+- Middle Knob Animation 128 Frames 200*200 px.
+- Small Knob Animation 128 Frames 150*150 px.
+- VU Meter Animation 128 Frames 320*500 px.
+- Big Button 150*150 px.
+- Small Button 80*155 px.
+- Slider 128*290 px.
 
 Key references
 - Project README: README.md (design/parameters/signal flow)

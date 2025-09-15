@@ -21,6 +21,7 @@ public:
     {
         // Look & Feel
         if (donutKnobLNF) releaseSec.setKnobLookAndFeel(donutKnobLNF);
+        if (neonToggleLNF) releaseSec.setAutoToggleLookAndFeel(neonToggleLNF);
         if (pillVSliderLNF) lookAhead.setSliderLookAndFeel(pillVSliderLNF);
         if (neonToggleLNF) {
             scHpfToggle.setLookAndFeel(neonToggleLNF);
@@ -29,19 +30,19 @@ public:
 
         // Basic rows
         addAndMakeVisible(releaseSec);
-        addAndMakeVisible(lookAhead);
+        // addAndMakeVisible(lookAhead);
 
-        // Toggles row
-        scHpfToggle.setButtonText("SC HPF");
-        safetyToggle.setButtonText("SAFETY");
-        addAndMakeVisible(toggleRow);
-        toggleRow.addAndMakeVisible(scHpfToggle);
-        toggleRow.addAndMakeVisible(safetyToggle);
+        // // Toggles row
+        // scHpfToggle.setButtonText("SC HPF");
+        // safetyToggle.setButtonText("SAFETY");
+        // addAndMakeVisible(toggleRow);
+        // toggleRow.addAndMakeVisible(scHpfToggle);
+        // toggleRow.addAndMakeVisible(safetyToggle);
 
-        // Attachments
-        laAttach = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(apvts, "lookAheadMs", lookAhead.slider);
-        hpfAttach = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(apvts, "scHpf", scHpfToggle);
-        safAttach = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(apvts, "safetyClip", safetyToggle);
+        // // Attachments
+        // laAttach = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(apvts, "lookAheadMs", lookAhead.slider);
+        // hpfAttach = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(apvts, "scHpf", scHpfToggle);
+        // safAttach = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(apvts, "safetyClip", safetyToggle);
     }
 
     ~ControlsColumn() override = default;

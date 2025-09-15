@@ -6,6 +6,9 @@ namespace Style {
 enum class Variant { Dark, Light };
 
 struct Theme {
+    // Global layout border rules (not for buttons)
+    float borderRadius = 3.0f;
+    float borderWidth  = 1.0f;
     // Base surfaces
     juce::Colour bg        { 0xFF121315 }; // window background
     juce::Colour panel     { 0xFF1c1d20 }; // panels/cards
