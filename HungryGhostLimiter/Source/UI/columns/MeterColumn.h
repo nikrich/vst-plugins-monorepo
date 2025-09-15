@@ -1,14 +1,14 @@
 #pragma once
 #include <juce_gui_extra/juce_gui_extra.h>
 #include "../Layout.h"
-#include "../Meter.h"
+#include <Controls/VerticalMeter.h>
 #include <Foundation/Typography.h>
 
 // A column to show a label and the attenuation meter under it.
 class MeterColumn : public juce::Component {
 public:
     MeterColumn()
-        : meter("ATTENUATION")
+        : meter()
     {
         // Title styling to match other columns
         label.setText("ATTEN", juce::dontSendNotification);
@@ -55,7 +55,7 @@ public:
 
 private:
     juce::Label label;
-    AttenMeter  meter;
+    ui::controls::VerticalMeter  meter;
     juce::Component spacer; // empty alignment spacer matching labels row height
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MeterColumn)

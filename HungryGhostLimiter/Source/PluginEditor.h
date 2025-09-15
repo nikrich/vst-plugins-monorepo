@@ -11,7 +11,7 @@
 #include "ui/columns/ControlsColumn.h"
 #include "ui/columns/MeterColumn.h"
 #include "ui/columns/OutputColumn.h"
-#include "ui/sections/LogoHeader.h"
+#include <Controls/LogoHeader.h>
 #include "ui/AdvancedPanel.h"
 #include <BinaryData.h>
 #include <Styling/Theme.h>
@@ -36,7 +36,7 @@ private:
     NeonToggleLNF  neonToggleLNF;
 
     // Sections
-    LogoHeader       logoHeader;
+    ui::controls::LogoHeader       logoHeader;
     AdvancedPanel    advanced;
 
     // Columns

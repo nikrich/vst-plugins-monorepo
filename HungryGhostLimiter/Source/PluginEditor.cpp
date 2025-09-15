@@ -18,6 +18,18 @@ HungryGhostLimiterAudioProcessorEditor::HungryGhostLimiterAudioProcessorEditor(H
     setOpaque(true);
     setSize(Layout::kTotalColsWidthPx + 2 * Layout::kPaddingPx, 520);
 
+    // Configure release knob filmstrip on DonutKnobLNF
+    {
+        using ui::foundation::ResourceResolver;
+        auto knobImg = ResourceResolver::loadImageByNames({
+            "mkfinal_png",
+            "mk-final.png",
+            "assets/ui/kit-03/middle knob/mk-final.png"
+        });
+        if (knobImg.isValid())
+            donutLNF.setKnobImage(knobImg, 128, true);
+    }
+
     // Sections visible
     addAndMakeVisible(logoHeader);
     // addAndMakeVisible(advanced);

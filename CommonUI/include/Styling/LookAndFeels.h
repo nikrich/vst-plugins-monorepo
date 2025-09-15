@@ -196,6 +196,23 @@ struct DonutKnobLNF : juce::LookAndFeel_V4
     bool filmstripVertical { true };
     int filmFrameSize { 0 };
 
+    // Allow external code to set a filmstrip image programmatically.
+    void setKnobImage(juce::Image img, int frames = 0, bool vertical = true)
+    {
+        knobImage = std::move(img);
+        filmstripFrames = frames;
+        filmstripVertical = vertical;
+        // If frames provided and image is valid, infer frame size now to avoid lazy zero size
+        if (knobImage.isValid() && filmstripFrames > 1)
+        {
+            filmFrameSize = filmstripVertical ? knobImage.getWidth() : knobImage.getHeight();
+        }
+        else
+        {
+            filmFrameSize = 0; // will be inferred on first draw if frames == 0 or image invalid
+        }
+    }
+
     DonutKnobLNF()
     {
         auto tryNamed = [&](const char* name)
@@ -283,12 +300,13 @@ struct DonutKnobLNF : juce::LookAndFeel_V4
         {
             const float pad = juce::jmax(2.0f, ringThickness * 0.10f);
             auto target = innerBounds.reduced(pad);
-            if (filmstripFrames == 0)
+            if (filmstripFrames <= 1)
             {
                 const int w = knobImage.getWidth();
                 const int h = knobImage.getHeight();
-                if (h > w) { filmstripVertical = true; filmFrameSize = w; filmstripFrames = juce::jmax(1, h / juce::jmax(1, w)); }
-                else if (w > h) { filmstripVertical = false; filmFrameSize = h; filmstripFrames = juce::jmax(1, w / juce::jmax(1, h)); }
+                // Infer frames if a typical 128-frame strip is detected (height multiple of width or vice versa)
+                if (h % w == 0 && w > 0) { filmstripVertical = true; filmFrameSize = w; filmstripFrames = juce::jmax(1, h / w); }
+                else if (w % h == 0 && h > 0) { filmstripVertical = false; filmFrameSize = h; filmstripFrames = juce::jmax(1, w / h); }
                 else { filmstripFrames = 1; filmFrameSize = juce::jmin(w, h); }
                 filmstripFrames = juce::jmin(128, filmstripFrames);
             }
