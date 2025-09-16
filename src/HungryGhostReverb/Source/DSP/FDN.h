@@ -19,8 +19,14 @@ public:
     void prepare(double sampleRate, int maxBlockSize)
     {
         fs = sampleRate;
-        // Choose a conservative max delay capacity (in samples) ~ 150 ms at 48k
-        const int maxDelaySamples = (int) std::ceil(0.15 * fs);
+        // Compute a worst-case max delay capacity to cover SR/Size/Mod ranges
+        // baseMax48k = longest base delay at 48k; sizeMax = 1.5; modMaxS = 10 ms in samples
+        const int baseMax48k = 6229;
+        const float sizeMax  = 1.5f;
+        const float modMaxS  = (10e-3f) * (float) fs;
+        const double scale   = fs / 48000.0;
+        const int maxDelaySamples = DelayLine::nextPow2((int) std::ceil(baseMax48k * scale * sizeMax + modMaxS + 4.0));
+        
         for (int i = 0; i < NumLines; ++i)
         {
             lines[i].prepare(fs, maxDelaySamples);
@@ -100,18 +106,12 @@ public:
         float fb[NumLines];
         hadamard(v, fb);
 
-        // 3) Apply per-line feedback gain and damping, then write next state with input injection
+        // 3) Apply per-line feedback gain and damping (feedback-only), then write next state with input injection
         for (int i = 0; i < NumLines; ++i)
         {
-            float feedbackSignal = fb[i] * gi[i];
-            float inputSignal = inputTap(i) * x;
-            float in = feedbackSignal + inputSignal;
-            
-            // Apply damping
-            in = dampers[i].processSample(in);
-            
-            // Safety clamp to prevent runaway
-            in = std::clamp(in, -10.0f, 10.0f);
+            const float fbSig   = fb[i] * gi[i];
+            const float damped  = dampers[i].processSample(fbSig); // LP only on recirculating path
+            const float in      = damped + inputTap(i) * x;        // undamped input injection keeps ER brighter
             
             lines[i].pushSample(in);
             out[i] = v[i];
@@ -131,7 +131,7 @@ public:
         }
         const float avg = 1.0f / (float) NumLines;
         float mid = 0.5f * (sumL + sumR) * avg;
-        float side = 0.5f * (sumL - sumR) * avg * juce::jlimit(0.0f, 1.0f, width);
+        float side = 0.5f * (sumL - sumR) * avg * std::clamp(width, 0.0f, 1.0f);
         outL = mid + side;
         outR = mid - side;
     }

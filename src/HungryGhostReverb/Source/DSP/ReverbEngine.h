@@ -63,8 +63,8 @@ public:
         postLowCut.setCutoffHz(juce::jlimit(20.0f, 300.0f, params.lowCutHz));
         postHighCut.setCutoffHz(juce::jlimit(1000.0f, 20000.0f, params.highCutHz));
 
-        mixSmoothed.setCurrentAndTargetValue(juce::jlimit(0.0f, 100.0f, params.mixPercent) * 0.01f);
-        widthSmoothed.setCurrentAndTargetValue(juce::jlimit(0.0f, 1.0f, params.width));
+        mixSmoothed.setTargetValue(juce::jlimit(0.0f, 100.0f, params.mixPercent) * 0.01f);
+        widthSmoothed.setTargetValue(juce::jlimit(0.0f, 1.0f, params.width));
 
         // Update diffusion coefficient across stages
         const float g = juce::jlimit(0.0f, 0.99f, 0.6f + 0.35f * params.diffusion);
@@ -104,7 +104,7 @@ public:
 
             // 4) Mix to stereo and post-EQ
             float wetL = 0.0f, wetR = 0.0f;
-            const float widthNow = juce::jlimit(0.0f, 1.0f, widthSmoothed.getCurrentValue());
+            const float widthNow = widthSmoothed.getNextValue();
             fdn.mixStereo(v, widthNow, wetL, wetR);
             wetL = postEQ(wetL);
             wetR = postEQ(wetR);
@@ -119,7 +119,7 @@ public:
             if (! std::isfinite(wetR)) wetR = 0.0f;
 
             // 6) Wet/dry mix (clamped) with simple gain compensation so wet-only isn't too quiet
-            const float mix = juce::jlimit(0.0f, 1.0f, mixSmoothed.getCurrentValue());
+            const float mix = mixSmoothed.getNextValue();
             const float dryGain = 1.0f - mix;
             const float wetGain = mix * 1.2f; // small boost to ensure audibility at 100%
             block.getChannelPointer(0)[n] = dryGain * inL + wetGain * wetL;

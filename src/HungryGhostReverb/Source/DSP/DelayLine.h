@@ -35,12 +35,18 @@ public:
 
     inline float readFractional(float totalDelaySamples, float lfoOffsetSamples = 0.0f) const noexcept
     {
-        const float d = totalDelaySamples + lfoOffsetSamples;
+        // Clamp total delay to a safe range to avoid reading past stale memory
+        const float cap = (float) capacity();
+        const float dRaw = totalDelaySamples + lfoOffsetSamples;
+        const float d = std::clamp(dRaw, 1.0f, cap - 2.0f);
+        
         const float rIdx = (float) writeIdx - d;
-        // wrap
-        const int i0 = (int) std::floor(rIdx) & mask;
+        const float kf = std::floor(rIdx);
+        const int k = (int) kf;
+        
+        const int i0 = k & mask;
         const int i1 = (i0 + 1) & mask;
-        const float frac = rIdx - std::floor(rIdx);
+        const float frac = rIdx - kf;
         const float s0 = buffer[(size_t) i0];
         const float s1 = buffer[(size_t) i1];
         return s0 + (s1 - s0) * frac; // linear interp

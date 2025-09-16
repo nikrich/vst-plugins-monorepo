@@ -13,7 +13,8 @@ public:
     void setCutoffHz(float hz)
     {
         cutoffHz = hz;
-        const float wc = std::tan((float) M_PI * (cutoffHz / (float) fs));
+        constexpr float pi = 3.14159265358979323846f;
+        const float wc = std::tan(pi * (cutoffHz / (float) fs));
         // TPT integrator coefficient
         a = wc / (1.0f + wc);
     }
