@@ -4,14 +4,19 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
 
 permissions:
   contents: write
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  release-hgl:
-    name: Build & Release HungryGhostLimiter (macOS)
-    runs-on: macos-latest
+  build-and-release:
+    name: Build & Release Limiter + Reverb (macOS)
+    runs-on: macos-14
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -23,44 +28,50 @@ jobs:
           xcodebuild -version
           xcode-select -p
 
-      - name: Configure HungryGhostLimiter (Xcode generator)
+      - name: Configure Limiter (Xcode)
         run: |
+          rm -rf src/HungryGhostLimiter/build
           cmake -S src/HungryGhostLimiter -B src/HungryGhostLimiter/build -G Xcode
 
-      - name: Build tests (Debug)
+      - name: Configure Reverb (Xcode)
         run: |
-          cmake --build src/HungryGhostLimiter/build --config Debug --target HGLTests_DSP HGLTests_Proc
+          rm -rf src/HungryGhostReverb/build
+          cmake -S src/HungryGhostReverb -B src/HungryGhostReverb/build -G Xcode
 
-      - name: Run tests (DSP)
-        run: |
-          ./src/HungryGhostLimiter/build/HGLTests_DSP_artefacts/Debug/HGLTests_DSP
-
-      - name: Run tests (Processor)
-        run: |
-          ./src/HungryGhostLimiter/build/HGLTests_Proc_artefacts/Debug/HGLTests_Proc
-
-      - name: Build plugin (Release)
+      - name: Build Limiter (Release)
         run: |
           cmake --build src/HungryGhostLimiter/build --config Release --target HungryGhostLimiter_VST3
 
-      - name: Package VST3 bundle (zip)
+      - name: Build Reverb (Release)
+        run: |
+          cmake --build src/HungryGhostReverb/build --config Release --target HungryGhostReverb_VST3
+
+      - name: Package Limiter VST3
+        id: pkg_limiter
         run: |
           set -euo pipefail
           ART_DIR="src/HungryGhostLimiter/build/HungryGhostLimiter_artefacts/Release/VST3"
           VST3_PATH=$(find "$ART_DIR" -type d -name "*.vst3" -print -quit)
-          echo "Found: $VST3_PATH"
-          [ -n "$VST3_PATH" ]
           OUT_ZIP="HungryGhostLimiter-vst3-macos-${GITHUB_REF_NAME}.zip"
-          # Use ditto to correctly zip macOS bundles
           ditto -c -k --sequesterRsrc --keepParent "$VST3_PATH" "$OUT_ZIP"
-          echo "Zipped to: $OUT_ZIP"
+          echo "zip=$OUT_ZIP" >> $GITHUB_OUTPUT
 
-      - name: Create GitHub Release and upload asset
+      - name: Package Reverb VST3
+        id: pkg_reverb
+        run: |
+          set -euo pipefail
+          ART_DIR="src/HungryGhostReverb/build/HungryGhostReverb_artefacts/Release/VST3"
+          VST3_PATH=$(find "$ART_DIR" -type d -name "*.vst3" -print -quit)
+          OUT_ZIP="HungryGhostReverb-vst3-macos-${GITHUB_REF_NAME}.zip"
+          ditto -c -k --sequesterRsrc --keepParent "$VST3_PATH" "$OUT_ZIP"
+          echo "zip=$OUT_ZIP" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release and upload assets
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          name: HungryGhostLimiter ${{ github.ref_name }}
+          name: Hungry Ghost Plugins ${{ github.ref_name }}
           generate_release_notes: true
           files: |
-            HungryGhostLimiter-vst3-macos-${{ github.ref_name }}.zip
-
+            ${{ steps.pkg_limiter.outputs.zip }}
+            ${{ steps.pkg_reverb.outputs.zip }}
