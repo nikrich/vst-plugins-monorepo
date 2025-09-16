@@ -121,7 +121,7 @@ public:
     // Stereo mix from line outputs using fixed tap weights and width
     inline void mixStereo(const float v[NumLines], float width, float& outL, float& outR) const noexcept
     {
-        // Mix with simple orthogonal patterns and average scaling
+        // Mix with simple orthogonal patterns and normalize by sqrt(N) for stronger wet level
         float sumL = 0.0f, sumR = 0.0f;
         for (int i = 0; i < NumLines; ++i)
         {
@@ -129,9 +129,10 @@ public:
             sumL += v[i] * s;
             sumR += v[(i + 3) & (NumLines - 1)] * -s; // permuted index for decorrelation
         }
-        const float avg = 1.0f / (float) NumLines;
-        float mid = 0.5f * (sumL + sumR) * avg;
-        float side = 0.5f * (sumL - sumR) * avg * std::clamp(width, 0.0f, 1.0f);
+        const float norm = 1.0f / std::sqrt((float) NumLines);
+        const float w    = std::clamp(width, 0.0f, 1.0f);
+        const float mid  = (sumL + sumR) * 0.5f * norm;
+        const float side = (sumL - sumR) * 0.5f * norm * w;
         outL = mid + side;
         outR = mid - side;
     }

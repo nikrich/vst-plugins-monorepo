@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <cmath>
 
 namespace hgr::dsp {
@@ -12,9 +13,12 @@ public:
 
     void setCutoffHz(float hz)
     {
-        cutoffHz = hz;
+        // Clamp cutoff to a safe, finite range and guard the tan() mapping
+        cutoffHz = std::clamp(hz, 20.0f, 0.49f * (float) fs);
         constexpr float pi = 3.14159265358979323846f;
-        const float wc = std::tan(pi * (cutoffHz / (float) fs));
+        const float x  = pi * (cutoffHz / (float) fs);
+        const float wc = std::tan(x);
+        if (!std::isfinite(wc)) { a = 1.0f; return; } // transparent if bad
         // TPT integrator coefficient
         a = wc / (1.0f + wc);
     }

@@ -32,10 +32,13 @@ public:
         }
 
         fdn.prepare(fs, maxBlock);
-        postLowCut.reset(); postHighCut.reset();
-        postLowCut.prepare(sampleRate);
-        postHighCut.prepare(sampleRate);
-        postHighCut.setCutoffHz(18000.0f);
+        for (int ch = 0; ch < 2; ++ch) {
+            postLowCut[ch].reset();
+            postHighCut[ch].reset();
+            postLowCut[ch].prepare(sampleRate);
+            postHighCut[ch].prepare(sampleRate);
+            postHighCut[ch].setCutoffHz(18000.0f);
+        }
     }
 
     void reset()
@@ -43,10 +46,10 @@ public:
         for (int ch = 0; ch < 2; ++ch) {
             predelay[ch].reset();
             for (auto& ap : diffuser[ch]) ap.reset();
+            postLowCut[ch].reset();
+            postHighCut[ch].reset();
         }
         fdn.reset();
-        postLowCut.reset();
-        postHighCut.reset();
         mixSmoothed.reset(fs, 0.05);
         widthSmoothed.reset(fs, 0.05);
     }
@@ -60,8 +63,12 @@ public:
         fdn.setRT60(params.decaySeconds);
         fdn.setHFDampingHz(params.hfDampingHz);
         fdn.setModulation(params.modRateHz, params.modDepthMs);
-        postLowCut.setCutoffHz(juce::jlimit(20.0f, 300.0f, params.lowCutHz));
-        postHighCut.setCutoffHz(juce::jlimit(1000.0f, 20000.0f, params.highCutHz));
+        const float lowCut = juce::jlimit(20.0f, 300.0f, params.lowCutHz);
+        const float highCut = juce::jlimit(1000.0f, 20000.0f, params.highCutHz);
+        for (int ch = 0; ch < 2; ++ch) {
+            postLowCut[ch].setCutoffHz(lowCut);
+            postHighCut[ch].setCutoffHz(highCut);
+        }
 
         mixSmoothed.setTargetValue(juce::jlimit(0.0f, 100.0f, params.mixPercent) * 0.01f);
         widthSmoothed.setTargetValue(juce::jlimit(0.0f, 1.0f, params.width));
@@ -106,8 +113,8 @@ public:
             float wetL = 0.0f, wetR = 0.0f;
             const float widthNow = widthSmoothed.getNextValue();
             fdn.mixStereo(v, widthNow, wetL, wetR);
-            wetL = postEQ(wetL);
-            wetR = postEQ(wetR);
+            wetL = postEQ(wetL, 0);
+            wetR = postEQ(wetR, 1);
 
             // Blend in a small amount of diffused early reflections to guarantee audible wet
             const float erBlend = 0.15f;
@@ -131,11 +138,11 @@ public:
 private:
     inline float predelaySamples() const noexcept { return (float) (params.predelayMs * 1e-3 * fs); }
 
-    inline float postEQ(float x) noexcept
+    inline float postEQ(float x, int ch) noexcept
     {
         // Simple tone shaping: low-cut by subtracting LP; high-cut is LP itself
         // For now, apply only high-cut (LP) for safety; low-cut reserved for later
-        return postHighCut.processSample(x);
+        return postHighCut[ch].processSample(x);
     }
 
     double fs = 48000.0;
@@ -148,7 +155,7 @@ private:
     Allpass   diffuser[2][4];
     FDN8      fdn;
 
-    OnePoleLP postLowCut, postHighCut;
+    OnePoleLP postLowCut[2], postHighCut[2];
 
     juce::SmoothedValue<float> mixSmoothed { 0.25f }, widthSmoothed { 1.0f };
 };
