@@ -22,7 +22,7 @@ file(GLOB_RECURSE HGR_SOURCES CONFIGURE_DEPENDS
 
 juce_add_plugin(HungryGhostReverb
     COMPANY_NAME "Hungry Ghost"
-    BUNDLE_ID com.hungryghost.hgreverb
+    BUNDLE_ID com.hungryghost.astralhalls
     IS_SYNTH FALSE
     NEEDS_MIDI_INPUT FALSE
     NEEDS_MIDI_OUTPUT FALSE
@@ -30,12 +30,24 @@ juce_add_plugin(HungryGhostReverb
     EDITOR_WANTS_KEYBOARD_FOCUS FALSE
     COPY_PLUGIN_AFTER_BUILD TRUE
     FORMATS VST3
-    PRODUCT_NAME "Hungry Ghost Reverb"
+    PRODUCT_NAME "Hungry Ghost Astral Halls"
     MODULES juce_dsp
 )
 
 # Sources and settings
 target_sources(HungryGhostReverb PRIVATE ${HGR_SOURCES})
+
+# Embed shared assets (images, fonts) so CommonUI's BinaryData references resolve
+# Collect common assets from repo-level assets/
+file(GLOB_RECURSE HGR_ASSET_FILES CONFIGURE_DEPENDS
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../assets/*.png
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../assets/*.jpg
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../assets/*.jpeg
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../assets/*.ttf
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../assets/*.otf
+)
+# Create a BinaryData target for these assets
+juce_add_binary_data(HGRReverbBinaryData SOURCES ${HGR_ASSET_FILES})
 
 # Ensure JUCE creates JuceHeader.h for us
 juce_generate_juce_header(HungryGhostReverb)
@@ -50,6 +62,7 @@ target_compile_definitions(HungryGhostReverb PRIVATE JUCE_VST3_CAN_REPLACE_VST2=
 target_link_libraries(HungryGhostReverb
     PRIVATE
         CommonUI
+        HGRReverbBinaryData
         juce::juce_audio_utils
         juce::juce_audio_processors
         juce::juce_dsp

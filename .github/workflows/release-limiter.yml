@@ -1,0 +1,64 @@
+name: Release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release-hgl:
+    name: Build & Release HungryGhostLimiter (macOS)
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Show Xcode info
+        run: |
+          xcodebuild -version
+          xcode-select -p
+
+      - name: Configure HungryGhostLimiter (Xcode generator)
+        run: |
+          cmake -S src/HungryGhostLimiter -B src/HungryGhostLimiter/build -G Xcode
+
+      - name: Build tests (Debug)
+        run: |
+          cmake --build src/HungryGhostLimiter/build --config Debug --target HGLTests_DSP HGLTests_Proc
+
+      - name: Run tests (DSP)
+        run: |
+          ./src/HungryGhostLimiter/build/HGLTests_DSP_artefacts/Debug/HGLTests_DSP
+
+      - name: Run tests (Processor)
+        run: |
+          ./src/HungryGhostLimiter/build/HGLTests_Proc_artefacts/Debug/HGLTests_Proc
+
+      - name: Build plugin (Release)
+        run: |
+          cmake --build src/HungryGhostLimiter/build --config Release --target HungryGhostLimiter_VST3
+
+      - name: Package VST3 bundle (zip)
+        run: |
+          set -euo pipefail
+          ART_DIR="src/HungryGhostLimiter/build/HungryGhostLimiter_artefacts/Release/VST3"
+          VST3_PATH=$(find "$ART_DIR" -type d -name "*.vst3" -print -quit)
+          echo "Found: $VST3_PATH"
+          [ -n "$VST3_PATH" ]
+          OUT_ZIP="HungryGhostLimiter-vst3-macos-${GITHUB_REF_NAME}.zip"
+          # Use ditto to correctly zip macOS bundles
+          ditto -c -k --sequesterRsrc --keepParent "$VST3_PATH" "$OUT_ZIP"
+          echo "Zipped to: $OUT_ZIP"
+
+      - name: Create GitHub Release and upload asset
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: HungryGhostLimiter ${{ github.ref_name }}
+          generate_release_notes: true
+          files: |
+            HungryGhostLimiter-vst3-macos-${{ github.ref_name }}.zip
+

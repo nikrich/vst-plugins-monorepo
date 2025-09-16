@@ -1,15 +1,34 @@
 name: CI
 
 on:
-  push:
-    branches: [ main ]
   pull_request:
     branches: [ main ]
+    paths:
+      - src/HungryGhostLimiter/**
+      - src/HungryGhostReverb/**
+      - src/CommonUI/**
+      - vendor/JUCE/**
+      - assets/**
+      - .github/workflows/ci.yml
+  push:
+    branches: [ main ]
+    paths:
+      - src/HungryGhostLimiter/**
+      - src/HungryGhostReverb/**
+      - src/CommonUI/**
+      - vendor/JUCE/**
+      - assets/**
+      - .github/workflows/ci.yml
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  build-and-test-hgl:
+  build-limiter:
     name: Build & Test HungryGhostLimiter (macOS)
-    runs-on: macos-latest
+    runs-on: macos-14
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -21,6 +40,7 @@ jobs:
 
       - name: Configure HungryGhostLimiter (Xcode generator)
         run: |
+          rm -rf src/HungryGhostLimiter/build
           cmake -S src/HungryGhostLimiter -B src/HungryGhostLimiter/build -G Xcode
 
       - name: Build tests (Debug)
@@ -47,3 +67,31 @@ jobs:
             src/HungryGhostLimiter/build/HungryGhostLimiter_artefacts/Release/VST3/**/*.vst3
             src/HungryGhostLimiter/build/HungryGhostLimiter_artefacts/Release/VST3/**/*.vst3/**
 
+  build-reverb:
+    name: Build HungryGhostReverb (macOS)
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Show Xcode info
+        run: |
+          xcodebuild -version
+          xcode-select -p
+
+      - name: Configure HungryGhostReverb (Xcode generator)
+        run: |
+          rm -rf src/HungryGhostReverb/build
+          cmake -S src/HungryGhostReverb -B src/HungryGhostReverb/build -G Xcode
+
+      - name: Build plugin (Release)
+        run: |
+          cmake --build src/HungryGhostReverb/build --config Release --target HungryGhostReverb_VST3
+
+      - name: Upload plugin artefacts (VST3 Bundle)
+        uses: actions/upload-artifact@v4
+        with:
+          name: HungryGhostReverb-vst3-macos
+          path: |
+            src/HungryGhostReverb/build/HungryGhostReverb_artefacts/Release/VST3/**/*.vst3
+            src/HungryGhostReverb/build/HungryGhostReverb_artefacts/Release/VST3/**/*.vst3/**

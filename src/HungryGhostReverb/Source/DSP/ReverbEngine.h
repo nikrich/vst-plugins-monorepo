@@ -57,12 +57,79 @@ public:
     void setParameters(const ReverbParameters& p)
     {
         params = p;
-        // Map to internal modules
+
+        // Mode mapping (clamp underlying int into enum range)
+        const int mi = juce::jlimit(0, 3, static_cast<int>(params.mode));
+        mode = static_cast<ReverbMode>(mi);
+
+        // Defaults (Hall-like)
+        numDiffusionStages = 4;
+        erBlend = 0.15f;
+        float sizeMul = 1.0f;
+        float hfDampOverrideHz = params.hfDampingHz;
+        float gDiffuserBase = 0.70f;
+        float rateMul = 1.0f, depthMul = 1.2f;
+        int   modMaskVariant = 0; // 0=longest half, 1=more lines
+        predelayMul = 1.0f;
+
+        switch (mode)
+        {
+            case ReverbMode::Room:
+                numDiffusionStages = 3;
+                erBlend = 0.12f;
+                sizeMul = 0.90f;
+                hfDampOverrideHz = 8000.0f;
+                gDiffuserBase = 0.62f;
+                rateMul = 1.2f;
+                depthMul = 0.9f;
+                modMaskVariant = 0;
+                predelayMul = 0.6f;
+                break;
+            case ReverbMode::Plate:
+                numDiffusionStages = 3;
+                erBlend = 0.10f;
+                sizeMul = 1.00f;
+                hfDampOverrideHz = 14000.0f;
+                gDiffuserBase = 0.78f;
+                rateMul = 1.6f;
+                depthMul = 0.7f;
+                modMaskVariant = 1; // mod more lines
+                predelayMul = 0.3f;
+                break;
+            case ReverbMode::Ambience:
+                numDiffusionStages = 2;
+                erBlend = 0.30f;
+                sizeMul = 0.75f;
+                hfDampOverrideHz = 11000.0f;
+                gDiffuserBase = 0.58f;
+                rateMul = 0.7f;
+                depthMul = 0.5f;
+                modMaskVariant = 0;
+                predelayMul = 0.2f;
+                break;
+            case ReverbMode::Hall:
+            default:
+                numDiffusionStages = 4;
+                erBlend = 0.15f;
+                sizeMul = 1.20f;
+                hfDampOverrideHz = 12000.0f;
+                gDiffuserBase = 0.72f;
+                rateMul = 0.9f;
+                depthMul = 1.3f;
+                modMaskVariant = 0;
+                predelayMul = 1.2f;
+                break;
+        }
+        numDiffusionStages = juce::jlimit(1, 4, numDiffusionStages);
+
+        // Map to internal modules with mode shaping
         fdn.setSeed(params.seed);
-        fdn.setSize(params.size);
+        fdn.setSize(params.size * sizeMul);
         fdn.setRT60(params.decaySeconds);
-        fdn.setHFDampingHz(params.hfDampingHz);
-        fdn.setModulation(params.modRateHz, params.modDepthMs);
+        fdn.setHFDampingHz(hfDampOverrideHz);
+        fdn.setModulation(params.modRateHz * rateMul, params.modDepthMs * depthMul);
+        fdn.setModulationMaskVariant(modMaskVariant);
+
         const float lowCut = juce::jlimit(20.0f, 300.0f, params.lowCutHz);
         const float highCut = juce::jlimit(1000.0f, 20000.0f, params.highCutHz);
         for (int ch = 0; ch < 2; ++ch) {
@@ -73,8 +140,8 @@ public:
         mixSmoothed.setTargetValue(juce::jlimit(0.0f, 100.0f, params.mixPercent) * 0.01f);
         widthSmoothed.setTargetValue(juce::jlimit(0.0f, 1.0f, params.width));
 
-        // Update diffusion coefficient across stages
-        const float g = juce::jlimit(0.0f, 0.99f, 0.6f + 0.35f * params.diffusion);
+        // Diffusion coefficient per mode, scaled by user diffusion (0.6..1.0 factor)
+        const float g = juce::jlimit(0.0f, 0.99f, gDiffuserBase * (0.6f + 0.4f * params.diffusion));
         for (int ch = 0; ch < 2; ++ch)
             for (auto& ap : diffuser[ch]) ap.setGain(g);
     }
@@ -99,7 +166,7 @@ public:
 
             float difL = preL;
             float difR = preR;
-            for (int i = 0; i < 4; ++i) {
+            for (int i = 0; i < numDiffusionStages; ++i) {
                 difL = diffuser[0][i].processSample(difL);
                 difR = diffuser[1][i].processSample(difR);
             }
@@ -117,7 +184,6 @@ public:
             wetR = postEQ(wetR, 1);
 
             // Blend in a small amount of diffused early reflections to guarantee audible wet
-            const float erBlend = 0.15f;
             wetL = (1.0f - erBlend) * wetL + erBlend * difL;
             wetR = (1.0f - erBlend) * wetR + erBlend * difR;
 
@@ -136,7 +202,7 @@ public:
     }
 
 private:
-    inline float predelaySamples() const noexcept { return (float) (params.predelayMs * 1e-3 * fs); }
+    inline float predelaySamples() const noexcept { return (float) ((params.predelayMs * predelayMul) * 1e-3 * fs); }
 
     inline float postEQ(float x, int ch) noexcept
     {
@@ -156,6 +222,12 @@ private:
     FDN8      fdn;
 
     OnePoleLP postLowCut[2], postHighCut[2];
+
+    // Mode profile
+    ReverbMode mode = ReverbMode::Hall;
+    int numDiffusionStages = 4;
+    float erBlend = 0.15f;
+    float predelayMul = 1.0f;
 
     juce::SmoothedValue<float> mixSmoothed { 0.25f }, widthSmoothed { 1.0f };
 };

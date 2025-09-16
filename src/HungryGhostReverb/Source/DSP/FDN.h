@@ -90,6 +90,8 @@ public:
         }
     }
 
+    void setModulationMaskVariant(int variant) noexcept { modMaskVariant = (variant != 0 ? 1 : 0); }
+
     // Inject mono input x into the network and produce N raw line outputs into out[]
     inline void tick(float x, float out[NumLines]) noexcept
     {
@@ -178,10 +180,14 @@ private:
         return (i & 1) ? -0.5f : 0.5f;
     }
 
-    static float depthMask(int i)
+    float depthMask(int i) const noexcept
     {
-        // Apply modulation only on longest half of lines
-        return (i >= NumLines / 2) ? 1.0f : 0.0f;
+        // Variant 0: longest half only (default)
+        // Variant 1: mod more lines (all except the two shortest) for livelier modes like Plate
+        if (modMaskVariant == 0)
+            return (i >= NumLines / 2) ? 1.0f : 0.0f;
+        else
+            return (i >= 2) ? 1.0f : 0.0f; // mod 6 longest of 8
     }
 
     double fs = 48000.0;
@@ -198,6 +204,8 @@ private:
     std::array<LFO, NumLines> lfos;
     std::array<float, NumLines> gi { };
     std::array<float, NumLines> prevOut { };
+
+    int modMaskVariant = 0; // 0: longest half, 1: all but two shortest
 };
 
 } // namespace hgr::dsp

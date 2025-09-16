@@ -1,0 +1,25 @@
+{
+  "manufacturer": "Hungry Ghost",
+  "bundleDisplayName": "Hungry Ghost Plugins",
+  "plugins": [
+    {
+      "id": "limiter",
+      "displayName": "Hungry Ghost Spectral Limiter",
+      "srcDir": "src/HungryGhostLimiter",
+      "vst3Target": "HungryGhostLimiter_VST3",
+      "vst3BundleName": "Hungry Ghost Spectral Limiter.vst3",
+      "mac": { "pkgId": "com.hungryghost.spectrallimiter" },
+      "win": { "upgradeCode": "{E3E0C9A3-7B2E-42D2-9C73-9B2C8E4A6E01}" }
+    },
+    {
+      "id": "astral",
+      "displayName": "Hungry Ghost Astral Halls",
+      "srcDir": "src/HungryGhostReverb",
+      "vst3Target": "HungryGhostReverb_VST3",
+      "vst3BundleName": "Hungry Ghost Astral Halls.vst3",
+      "mac": { "pkgId": "com.hungryghost.astralhalls" },
+      "win": { "upgradeCode": "{9A7B4B70-3C2F-4E0E-8E37-5A9E19F6E2D5}" }
+    }
+  ],
+  "bundle": { "win": { "upgradeCode": "{7E1B0C5C-0C11-4B15-B1C9-4C6A7D9E9B22}" } }
+}

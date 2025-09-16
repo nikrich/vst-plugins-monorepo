@@ -35,6 +35,10 @@ void HungryGhostReverbAudioProcessor::processBlock(juce::AudioBuffer<float>& buf
     currentParams.width        = apvts.getRawParameterValue("width")->load();
     currentParams.seed         = (int) apvts.getRawParameterValue("seed")->load();
     currentParams.freeze       = apvts.getRawParameterValue("freeze")->load() > 0.5f;
+    {
+        const int mi = (int) apvts.getRawParameterValue("mode")->load();
+        currentParams.mode = static_cast<hgr::dsp::ReverbMode>(juce::jlimit(0, 3, mi));
+    }
 
     reverb.setParameters(currentParams);
 
@@ -67,6 +71,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout HungryGhostReverbAudioProces
     auto hzRange = [](float lo, float hi){ juce::NormalisableRange<float> r(lo, hi); r.setSkewForCentre(1000.0f); return r; };
     auto timeRange = [](){ juce::NormalisableRange<float> r(0.1f, 60.0f); r.setSkewForCentre(2.0f); return r; };
 
+    params.push_back(std::make_unique<juce::AudioParameterChoice>("mode",         "Mode",         juce::StringArray{ "Hall", "Room", "Plate", "Ambience" }, 0));
     params.push_back(std::make_unique<juce::AudioParameterFloat>("mix",          "Mix",          juce::NormalisableRange<float>(0.f, 100.f), 25.0f));
     params.push_back(std::make_unique<juce::AudioParameterFloat>("decaySeconds", "Decay (s)",    timeRange(), 3.0f));
     params.push_back(std::make_unique<juce::AudioParameterFloat>("size",         "Size",         juce::NormalisableRange<float>(0.5f, 1.5f), 1.0f));

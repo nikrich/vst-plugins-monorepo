@@ -4,6 +4,8 @@
 
 namespace hgr::dsp {
 
+enum class ReverbMode : int { Hall = 0, Room = 1, Plate = 2, Ambience = 3 };
+
 struct ReverbParameters {
     // User-facing controls
     float mixPercent    = 25.0f;   // 0..100
@@ -19,6 +21,7 @@ struct ReverbParameters {
     float width         = 1.0f;    // 0..1
     int   seed          = 1337;    // deterministic phases
     bool  freeze        = false;   // sustain tails
+    ReverbMode mode     = ReverbMode::Hall; // Hall, Room, Plate, Ambience
 };
 
 } // namespace hgr::dsp
