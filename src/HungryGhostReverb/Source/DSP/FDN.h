@@ -1,0 +1,203 @@
+#pragma once
+
+#include <array>
+#include <vector>
+#include <cmath>
+#include <algorithm>
+
+#include "DelayLine.h"
+#include "DampingFilter.h"
+#include "Modulator.h"
+
+namespace hgr::dsp {
+
+// 8x8 Feedback Delay Network with Hadamard feedback matrix
+class FDN8 {
+public:
+    static constexpr int NumLines = 8;
+
+    void prepare(double sampleRate, int maxBlockSize)
+    {
+        fs = sampleRate;
+        // Choose a conservative max delay capacity (in samples) ~ 150 ms at 48k
+        const int maxDelaySamples = (int) std::ceil(0.15 * fs);
+        for (int i = 0; i < NumLines; ++i)
+        {
+            lines[i].prepare(fs, maxDelaySamples);
+            dampers[i].prepare(fs);
+            dampers[i].setCutoffHz(hfHz);
+            lfos[i].prepare(fs, seed + i * 17);
+        }
+        setSize(1.0f);
+        setRT60(3.0f);
+        setHFDampingHz(6000.0f);
+        setModulation(0.3f, 1.5f);
+        computeHadamardScale();
+    }
+
+    void reset()
+    {
+        for (int i = 0; i < NumLines; ++i) { lines[i].reset(); dampers[i].reset(); }
+        std::fill(prevOut.begin(), prevOut.end(), 0.0f);
+    }
+
+    void setSeed(int s)
+    {
+        seed = s;
+        for (int i = 0; i < NumLines; ++i) lfos[i].prepare(fs, seed + i * 17);
+    }
+
+    void setSize(float size)
+    {
+        sizeScale = std::clamp(size, 0.5f, 1.5f);
+        // Base delays (samples at 48k reference). Mutually inharmonic-ish lengths.
+        const int base48k[NumLines] = { 1421, 1877, 2269, 2791, 3359, 4217, 5183, 6229 };
+        for (int i = 0; i < NumLines; ++i)
+        {
+            const float scaled = base48k[i] * (float) (fs / 48000.0) * sizeScale;
+            lines[i].setBaseDelaySamples((int) std::round(scaled));
+        }
+        updateGi();
+    }
+
+    void setRT60(float seconds)
+    {
+        rt60 = std::clamp(seconds, 0.1f, 60.0f);
+        updateGi();
+    }
+
+    void setHFDampingHz(float hz)
+    {
+        hfHz = std::clamp(hz, 1000.0f, 20000.0f);
+        for (auto& d : dampers) d.setCutoffHz(hfHz);
+    }
+
+    void setModulation(float rateHz, float depthMs)
+    {
+        modRateHz = std::clamp(rateHz, 0.01f, 8.0f);
+        modDepthMs = std::clamp(depthMs, 0.0f, 10.0f);
+        const float depthSamples = (float) (modDepthMs * 1e-3 * fs);
+        for (int i = 0; i < NumLines; ++i)
+        {
+            lfos[i].setRateHz(modRateHz * (1.0f + 0.03f * (float) i)); // slight offsets
+            lfos[i].setDepthSamples(depthSamples * depthMask(i));
+        }
+    }
+
+    // Inject mono input x into the network and produce N raw line outputs into out[]
+    inline void tick(float x, float out[NumLines]) noexcept
+    {
+        // 1) Read current delay outputs with modulation (apply on longest lines only)
+        float v[NumLines];
+        for (int i = 0; i < NumLines; ++i)
+        {
+            const float lfo = lfos[i].nextOffsetSamples();
+            const float delayTime = std::max(1.0f, (float) lines[i].getBaseDelaySamples() + lfo);
+            v[i] = lines[i].getDelayedSample(delayTime);
+        }
+
+        // 2) Hadamard mix (unitary up to scale); produce feedback vector fb
+        float fb[NumLines];
+        hadamard(v, fb);
+
+        // 3) Apply per-line feedback gain and damping, then write next state with input injection
+        for (int i = 0; i < NumLines; ++i)
+        {
+            float feedbackSignal = fb[i] * gi[i];
+            float inputSignal = inputTap(i) * x;
+            float in = feedbackSignal + inputSignal;
+            
+            // Apply damping
+            in = dampers[i].processSample(in);
+            
+            // Safety clamp to prevent runaway
+            in = std::clamp(in, -10.0f, 10.0f);
+            
+            lines[i].pushSample(in);
+            out[i] = v[i];
+        }
+    }
+
+    // Stereo mix from line outputs using fixed tap weights and width
+    inline void mixStereo(const float v[NumLines], float width, float& outL, float& outR) const noexcept
+    {
+        // Mix with simple orthogonal patterns and average scaling
+        float sumL = 0.0f, sumR = 0.0f;
+        for (int i = 0; i < NumLines; ++i)
+        {
+            const float s = (i & 1) ? -1.0f : 1.0f;
+            sumL += v[i] * s;
+            sumR += v[(i + 3) & (NumLines - 1)] * -s; // permuted index for decorrelation
+        }
+        const float avg = 1.0f / (float) NumLines;
+        float mid = 0.5f * (sumL + sumR) * avg;
+        float side = 0.5f * (sumL - sumR) * avg * juce::jlimit(0.0f, 1.0f, width);
+        outL = mid + side;
+        outR = mid - side;
+    }
+
+private:
+    void computeHadamardScale() { hadamardScale = 1.0f / std::sqrt((float) NumLines); }
+
+    void hadamard(const float in[NumLines], float out[NumLines]) const noexcept
+    {
+        // unrolled 8-point hadamard butterflies
+        float s0 = in[0] + in[1]; float d0 = in[0] - in[1];
+        float s1 = in[2] + in[3]; float d1 = in[2] - in[3];
+        float s2 = in[4] + in[5]; float d2 = in[4] - in[5];
+        float s3 = in[6] + in[7]; float d3 = in[6] - in[7];
+        float s4 = s0 + s1;      float d4 = s0 - s1;
+        float s5 = d0 + d1;      float d5 = d0 - d1;
+        float s6 = s2 + s3;      float d6 = s2 - s3;
+        float s7 = d2 + d3;      float d7 = d2 - d3;
+        out[0] = (s4 + s6) * hadamardScale;
+        out[1] = (s5 + d7) * hadamardScale;
+        out[2] = (d4 + s7) * hadamardScale;
+        out[3] = (d5 + d6) * hadamardScale;
+        out[4] = (s4 - s6) * hadamardScale;
+        out[5] = (s5 - d7) * hadamardScale;
+        out[6] = (d4 - s7) * hadamardScale;
+        out[7] = (d5 - d6) * hadamardScale;
+    }
+
+    void updateGi()
+    {
+        // RT60 mapping: use longest line
+        int Lmax = 1;
+        for (int i = 0; i < NumLines; ++i) Lmax = std::max(Lmax, lines[i].getBaseDelaySamples());
+        const float gGlobal = std::pow(10.0f, (float) (-3.0 * (double) Lmax / (rt60 * fs)));
+        // Clamp to stable range
+        const float gClamped = std::clamp(gGlobal, 0.0f, 0.99f);
+        for (int i = 0; i < NumLines; ++i) gi[i] = gClamped;
+    }
+
+    static float inputTap(int i)
+    {
+        // alternating signs for width; slightly stronger feed to ensure audible wet
+        return (i & 1) ? -0.5f : 0.5f;
+    }
+
+    static float depthMask(int i)
+    {
+        // Apply modulation only on longest half of lines
+        return (i >= NumLines / 2) ? 1.0f : 0.0f;
+    }
+
+    double fs = 48000.0;
+    float sizeScale = 1.0f;
+    float rt60 = 3.0f;
+    float hfHz = 6000.0f;
+    float modRateHz = 0.3f;
+    float modDepthMs = 1.5f;
+    int seed = 1337;
+    float hadamardScale = 1.0f;
+
+    std::array<DelayLine, NumLines> lines;
+    std::array<OnePoleLP, NumLines> dampers;
+    std::array<LFO, NumLines> lfos;
+    std::array<float, NumLines> gi { };
+    std::array<float, NumLines> prevOut { };
+};
+
+} // namespace hgr::dsp
+
