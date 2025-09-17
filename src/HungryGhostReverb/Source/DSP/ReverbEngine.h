@@ -127,7 +127,15 @@ public:
         fdn.setSize(params.size * sizeMul);
         fdn.setRT60(params.decaySeconds);
         fdn.setHFDampingHz(hfDampOverrideHz);
-        fdn.setModulation(params.modRateHz * rateMul, params.modDepthMs * depthMul);
+        // Clamp modulation depth for non-Plate modes to avoid chorus; allow deeper in Plate
+        float modDepthMsPolicy = params.modDepthMs * depthMul;
+        if (mode != ReverbMode::Plate)
+        {
+            const float depthSamples = (float) (modDepthMsPolicy * 1e-3 * fs);
+            const float cappedSamples = juce::jlimit(0.0f, 8.0f * (float) (fs / 48000.0), depthSamples);
+            modDepthMsPolicy = cappedSamples * 1e3f / (float) fs;
+        }
+        fdn.setModulation(params.modRateHz * rateMul, modDepthMsPolicy);
         fdn.setModulationMaskVariant(modMaskVariant);
 
         const float lowCut = juce::jlimit(20.0f, 300.0f, params.lowCutHz);
@@ -137,11 +145,28 @@ public:
             postHighCut[ch].setCutoffHz(highCut);
         }
 
+        // Slight channel decorrelation: jitter diffuser delays by +/- ~0.15 ms per channel
+        for (int ch = 0; ch < 2; ++ch) {
+            for (int i = 0; i < 4; ++i) {
+                const float baseMs = 5.0f + 2.0f * (float) i;
+                const float jitterMs = (ch == 0 ? -0.15f : +0.15f);
+                const int dSamp = (int) std::round((baseMs + jitterMs) * 1e-3f * (float) fs);
+                diffuser[ch][i].setDelaySamples(juce::jmax(1, dSamp));
+            }
+        }
+
         mixSmoothed.setTargetValue(juce::jlimit(0.0f, 100.0f, params.mixPercent) * 0.01f);
         widthSmoothed.setTargetValue(juce::jlimit(0.0f, 1.0f, params.width));
 
-        // Diffusion coefficient per mode, scaled by user diffusion (0.6..1.0 factor)
-        const float g = juce::jlimit(0.0f, 0.99f, gDiffuserBase * (0.6f + 0.4f * params.diffusion));
+        // Freeze handling after params applied so it can override motion/EQ
+        fdn.setFreeze(params.freeze);
+
+        // Diffusion coefficient with perceptual taper; mode base steers range
+        const float t = std::pow(juce::jlimit(0.0f, 1.0f, params.diffusion), 0.65f);
+        float minG = juce::jlimit(0.6f, 0.85f, gDiffuserBase - 0.10f);
+        float maxG = juce::jlimit(0.6f, 0.85f, gDiffuserBase + 0.10f);
+        if (minG > maxG) std::swap(minG, maxG);
+        const float g = juce::jlimit(0.0f, 0.99f, juce::jmap(t, minG, maxG));
         for (int ch = 0; ch < 2; ++ch)
             for (auto& ap : diffuser[ch]) ap.setGain(g);
     }
@@ -171,7 +196,7 @@ public:
                 difR = diffuser[1][i].processSample(difR);
             }
 
-            // 3) FDN tick using mono feed from diffused mid (average L/R)
+        // 3) FDN tick using mono feed from diffused mid (average L/R)
             float v[FDN8::NumLines];
             const float x = 0.5f * (difL + difR);
             fdn.tick(x, v);
@@ -191,10 +216,10 @@ public:
             if (! std::isfinite(wetL)) wetL = 0.0f;
             if (! std::isfinite(wetR)) wetR = 0.0f;
 
-            // 6) Wet/dry mix (clamped) with simple gain compensation so wet-only isn't too quiet
+            // 6) Equal-power wet/dry mix to preserve perceived loudness
             const float mix = mixSmoothed.getNextValue();
-            const float dryGain = 1.0f - mix;
-            const float wetGain = mix * 1.2f; // small boost to ensure audibility at 100%
+            const float dryGain = std::sqrt(1.0f - mix);
+            const float wetGain = std::sqrt(mix);
             block.getChannelPointer(0)[n] = dryGain * inL + wetGain * wetL;
             if (numCh > 1)
                 block.getChannelPointer(1)[n] = dryGain * inR + wetGain * wetR;
@@ -208,7 +233,10 @@ private:
     {
         // Simple tone shaping: low-cut by subtracting LP; high-cut is LP itself
         // For now, apply only high-cut (LP) for safety; low-cut reserved for later
-        return postHighCut[ch].processSample(x);
+        // High-pass via subtraction (HP = x - LP), then high-cut LP
+        const float lp = postLowCut[ch].processSample(x);
+        const float hp = x - lp;
+        return postHighCut[ch].processSample(hp);
     }
 
     double fs = 48000.0;
