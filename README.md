@@ -1,6 +1,8 @@
 # Hungry Ghost Proprietary VSTs
 
-This monorepo contains JUCE-based audio plugins developed by Hungry Ghost.[![CI](https://github.com/nikrich/vst-plugins-monorepo/actions/workflows/ci.yml/badge.svg)](https://github.com/nikrich/vst-plugins-monorepo/actions/workflows/ci.yml)
+This monorepo contains JUCE-based audio plugins developed by Hungry Ghost.
+
+[![CI](https://github.com/nikrich/vst-plugins-monorepo/actions/workflows/ci.yml/badge.svg)](https://github.com/nikrich/vst-plugins-monorepo/actions/workflows/ci.yml)
 [![Release](https://github.com/nikrich/vst-plugins-monorepo/actions/workflows/release.yml/badge.svg)](https://github.com/nikrich/vst-plugins-monorepo/actions/workflows/release.yml)
 
 ## Plugins
@@ -15,7 +17,7 @@ Astral Halls is a modern reverb built on an FDN-based architecture designed for 
 
 For a deeper dive into the architecture, parameters, and roadmap, see docs/readme/astral-halls.md.
 
-### Spectral Limiter (Hungry Ghost Limiter)
+### Spectral Limiter (Limiter)
 A transparent, modern true‑peak limiter focused on punchy, artifact‑free loudness.
 
 - True‑peak safe via internal oversampling (4×/8× depending on sample rate)
