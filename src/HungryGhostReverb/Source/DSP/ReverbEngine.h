@@ -10,13 +10,19 @@
 
 namespace hgr::dsp {
 
-class ReverbEngine {
+    class ReverbEngine {
 public:
     void prepare(double sampleRate, int maxBlockSize, int numChannels)
     {
         fs = sampleRate;
         maxBlock = maxBlockSize;
         channels = juce::jlimit(1, 2, numChannels);
+
+        // Smoothers for EQ and tank decay
+        hfSm.reset(fs, 0.02);
+        lowSm.reset(fs, 0.02);
+        highSm.reset(fs, 0.02);
+        rt60Sm.reset(fs, 0.02);
 
         // Predelay lines per channel (up to 200 ms)
         const int maxPredelaySamples = (int) std::ceil(0.2 * fs);
@@ -31,7 +37,14 @@ public:
             }
         }
 
-        fdn.prepare(fs, maxBlock);
+        fdnA.prepare(fs, maxBlock);
+        fdnB.prepare(fs, maxBlock);
+        useA = true;
+        xfActive = false;
+        xf = 0.0f;
+        const float tauXf = 0.10f; // 100 ms crossfade
+        xfAlpha = 1.0f - std::exp(-1.0f / (float) (tauXf * fs));
+        lastSizeApplied = 1.0f;
         for (int ch = 0; ch < 2; ++ch) {
             postLowCut[ch].reset();
             postHighCut[ch].reset();
@@ -49,7 +62,8 @@ public:
             postLowCut[ch].reset();
             postHighCut[ch].reset();
         }
-        fdn.reset();
+        fdnA.reset();
+        fdnB.reset();
         mixSmoothed.reset(fs, 0.05);
         widthSmoothed.reset(fs, 0.05);
     }
@@ -123,10 +137,11 @@ public:
         numDiffusionStages = juce::jlimit(1, 4, numDiffusionStages);
 
         // Map to internal modules with mode shaping
-        fdn.setSeed(params.seed);
-        fdn.setSize(params.size * sizeMul);
-        fdn.setRT60(params.decaySeconds);
-        fdn.setHFDampingHz(hfDampOverrideHz);
+        // Apply to both tanks; crossfade will decide which is audible
+        const float sizeEff = params.size * sizeMul;
+        const float rt60Eff = params.decaySeconds;
+        const float hfEff   = hfDampOverrideHz;
+
         // Clamp modulation depth for non-Plate modes to avoid chorus; allow deeper in Plate
         float modDepthMsPolicy = params.modDepthMs * depthMul;
         if (mode != ReverbMode::Plate)
@@ -135,8 +150,39 @@ public:
             const float cappedSamples = juce::jlimit(0.0f, 8.0f * (float) (fs / 48000.0), depthSamples);
             modDepthMsPolicy = cappedSamples * 1e3f / (float) fs;
         }
-        fdn.setModulation(params.modRateHz * rateMul, modDepthMsPolicy);
-        fdn.setModulationMaskVariant(modMaskVariant);
+
+        auto applyCommon = [&](FDN8& f){
+            f.setSeed(params.seed);
+            f.setRT60(rt60Eff);
+            f.setHFDampingHz(hfEff);
+            f.setModulation(params.modRateHz * rateMul, modDepthMsPolicy);
+            f.setModulationMaskVariant(modMaskVariant);
+        };
+
+        // Decide whether to start a size crossfade
+        const float sizeDelta = std::abs(sizeEff - lastSizeApplied);
+        const float sizeThresh = 0.02f; // 2% change triggers crossfade
+        if (!xfActive && sizeDelta > sizeThresh)
+        {
+            // Configure idle tank with new size and common params
+            idleFdn().setSize(sizeEff);
+            applyCommon(idleFdn());
+            // Ensure active tank keeps old size until crossfade completes
+            applyCommon(activeFdn());
+            // Start crossfade
+            xfActive = true;
+            xf = 0.0f;
+            pendingSize = sizeEff;
+        }
+        else
+        {
+            // No crossfade: apply size immediately to both (safe small change)
+            activeFdn().setSize(sizeEff);
+            idleFdn().setSize(sizeEff);
+            applyCommon(activeFdn());
+            applyCommon(idleFdn());
+            lastSizeApplied = sizeEff;
+        }
 
         const float lowCut = juce::jlimit(20.0f, 300.0f, params.lowCutHz);
         const float highCut = juce::jlimit(1000.0f, 20000.0f, params.highCutHz);
@@ -145,11 +191,23 @@ public:
             postHighCut[ch].setCutoffHz(highCut);
         }
 
-        // Slight channel decorrelation: jitter diffuser delays by +/- ~0.15 ms per channel
+        // Smooth targets for EQ and damping
+        hfSm.setTargetValue(hfEff);
+        lowSm.setTargetValue(lowCut);
+        highSm.setTargetValue(highCut);
+        rt60Sm.setTargetValue(rt60Eff);
+
+        // Slight channel decorrelation: jitter diffuser delays deterministically by +/- ~0.15 ms per channel
+        auto jitterSign = [&](int stage, int ch){
+            uint32_t v = (uint32_t) params.seed;
+            v ^= (uint32_t) (stage * 97);
+            v ^= (uint32_t) (ch * 131);
+            return (v & 1u) ? +1.0f : -1.0f;
+        };
         for (int ch = 0; ch < 2; ++ch) {
             for (int i = 0; i < 4; ++i) {
                 const float baseMs = 5.0f + 2.0f * (float) i;
-                const float jitterMs = (ch == 0 ? -0.15f : +0.15f);
+                const float jitterMs = 0.15f * jitterSign(i, ch);
                 const int dSamp = (int) std::round((baseMs + jitterMs) * 1e-3f * (float) fs);
                 diffuser[ch][i].setDelaySamples(juce::jmax(1, dSamp));
             }
@@ -159,7 +217,8 @@ public:
         widthSmoothed.setTargetValue(juce::jlimit(0.0f, 1.0f, params.width));
 
         // Freeze handling after params applied so it can override motion/EQ
-        fdn.setFreeze(params.freeze);
+        activeFdn().setFreeze(params.freeze);
+        idleFdn().setFreeze(params.freeze);
 
         // Diffusion coefficient with perceptual taper; mode base steers range
         const float t = std::pow(juce::jlimit(0.0f, 1.0f, params.diffusion), 0.65f);
@@ -196,15 +255,65 @@ public:
                 difR = diffuser[1][i].processSample(difR);
             }
 
-        // 3) FDN tick using mono feed from diffused mid (average L/R)
-            float v[FDN8::NumLines];
+            // 3) Prepare mono feed from diffused mid (average L/R)
             const float x = 0.5f * (difL + difR);
-            fdn.tick(x, v);
 
             // 4) Mix to stereo and post-EQ
             float wetL = 0.0f, wetR = 0.0f;
             const float widthNow = widthSmoothed.getNextValue();
-            fdn.mixStereo(v, widthNow, wetL, wetR);
+
+            // Smoothly update EQ and tank damping/decay a few times per block
+            const int updStep = juce::jmax(1, numSamp / 8);
+            if ((n % updStep) == 0)
+            {
+                const float hfNow = hfSm.getNextValue();
+                const float lcNow = lowSm.getNextValue();
+                const float hcNow = highSm.getNextValue();
+                const float rtNow = rt60Sm.getNextValue();
+                activeFdn().setHFDampingHz(hfNow);
+                idleFdn().setHFDampingHz(hfNow);
+                activeFdn().setRT60(rtNow);
+                idleFdn().setRT60(rtNow);
+                postLowCut[0].setCutoffHz(lcNow); postLowCut[1].setCutoffHz(lcNow);
+                postHighCut[0].setCutoffHz(hcNow); postHighCut[1].setCutoffHz(hcNow);
+            }
+
+            float wetL_A = 0.0f, wetR_A = 0.0f;
+            float wetL_B = 0.0f, wetR_B = 0.0f;
+
+            if (xfActive)
+            {
+                float vA[FDN8::NumLines];
+                float vB[FDN8::NumLines];
+                // Tick both tanks
+                activeFdn().tick(x, vA);
+                idleFdn().tick(x, vB);
+                activeFdn().mixStereo(vA, widthNow, wetL_A, wetR_A);
+                idleFdn().mixStereo(vB, widthNow, wetL_B, wetR_B);
+                // Advance crossfade
+                xf += (1.0f - xf) * xfAlpha;
+                if (xf > 0.999f)
+                {
+                    // Finish crossfade: swap tanks
+                    std::swap(fdnA, fdnB);
+                    useA = true; // after swap, A is active again
+                    xfActive = false;
+                    xf = 0.0f;
+                    lastSizeApplied = pendingSize;
+                }
+            }
+            else
+            {
+                float vA[FDN8::NumLines];
+                activeFdn().tick(x, vA);
+                activeFdn().mixStereo(vA, widthNow, wetL_A, wetR_A);
+            }
+
+            float wetLmix = xfActive ? ((1.0f - xf) * wetL_A + xf * wetL_B) : wetL_A;
+            float wetRmix = xfActive ? ((1.0f - xf) * wetR_A + xf * wetR_B) : wetR_A;
+            
+            wetL = wetLmix;
+            wetR = wetRmix;
             wetL = postEQ(wetL, 0);
             wetR = postEQ(wetR, 1);
 
@@ -247,7 +356,15 @@ private:
 
     DelayLine predelay[2];
     Allpass   diffuser[2][4];
-    FDN8      fdn;
+    FDN8      fdnA, fdnB;
+
+    // Crossfade state for size changes
+    bool  useA = true;
+    bool  xfActive = false;
+    float xf = 0.0f;
+    float xfAlpha = 0.02f;
+    float lastSizeApplied = 1.0f;
+    float pendingSize = 1.0f;
 
     OnePoleLP postLowCut[2], postHighCut[2];
 
@@ -258,6 +375,10 @@ private:
     float predelayMul = 1.0f;
 
     juce::SmoothedValue<float> mixSmoothed { 0.25f }, widthSmoothed { 1.0f };
+    juce::SmoothedValue<float> hfSm { 6000.0f }, lowSm { 100.0f }, highSm { 18000.0f }, rt60Sm { 3.0f };
+
+    inline FDN8& activeFdn() noexcept { return useA ? fdnA : fdnB; }
+    inline FDN8& idleFdn()   noexcept { return useA ? fdnB : fdnA; }
 };
 
 } // namespace hgr::dsp

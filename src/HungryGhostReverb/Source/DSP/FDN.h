@@ -19,6 +19,12 @@ public:
     void prepare(double sampleRate, int maxBlockSize)
     {
         fs = sampleRate;
+        // Freeze ramp coefficient for ~75 ms time constant
+        const float tauSec = 0.075f;
+        freezeAlpha = 1.0f - std::exp(-1.0f / (float) (tauSec * fs));
+        freezeXf = 0.0f;
+        freezeTarget = 0.0f;
+
         // Compute a worst-case max delay capacity to cover SR/Size/Mod ranges
         // baseMax48k = longest base delay at 48k; sizeMax = 1.5; modMaxS = 10 ms in samples
         const int baseMax48k = 6229;
@@ -80,23 +86,7 @@ public:
 
     void setFreeze(bool on)
     {
-        frozen = on;
-        if (frozen)
-        {
-            // Open damping and stop modulation motion
-            for (int i = 0; i < NumLines; ++i)
-            {
-                dampers[i].setCutoffHz(20000.0f);
-                lfos[i].setDepthSamples(0.0f);
-            }
-        }
-        else
-        {
-            // Restore current damping cutoff
-            for (int i = 0; i < NumLines; ++i)
-                dampers[i].setCutoffHz(hfHz);
-            // Depth will be restored by next setModulation() call from the engine
-        }
+        freezeTarget = on ? 1.0f : 0.0f;
     }
 
     void setModulation(float rateHz, float depthMs)
@@ -119,11 +109,17 @@ public:
     // Inject mono input x into the network and produce N raw line outputs into out[]
     inline void tick(float xIn, float out[NumLines]) noexcept
     {
+        // Update freeze ramp
+        freezeXf += (freezeTarget - freezeXf) * freezeAlpha;
+        if (freezeXf < 0.0f) freezeXf = 0.0f;
+        if (freezeXf > 1.0f) freezeXf = 1.0f;
+        const float motionScale = 1.0f - freezeXf; // 1 → normal, 0 → frozen
+
         // 1) Read current delay outputs with modulation (apply on longest lines only)
         float v[NumLines];
         for (int i = 0; i < NumLines; ++i)
         {
-            const float lfo = lfos[i].nextOffsetSamples();
+            const float lfo = lfos[i].nextOffsetSamples() * motionScale;
             const float baseD = (float) lines[i].getBaseDelaySamples();
             v[i] = lines[i].readInterpolated(baseD, lfo, interpMode[i]);
         }
@@ -133,12 +129,13 @@ public:
         hadamard(v, fb);
 
         // 3) Apply per-line feedback gain and damping (feedback-only), then write next state with input injection
-        const float xin = frozen ? 0.0f : xIn;
+        const float xinGain = motionScale; // mute input when frozen
         for (int i = 0; i < NumLines; ++i)
         {
-            const float fbSig   = fb[i] * (frozen ? 0.99995f : gi[i]);
-            const float damped  = dampers[i].processSample(fbSig); // LP only on recirculating path
-            const float in      = damped + inputTap(i) * xin;      // undamped input injection keeps ER brighter
+            const float fbGain = gi[i] * motionScale + 0.99995f * (1.0f - motionScale);
+            const float fbSig  = fb[i] * fbGain;
+            const float damped = dampers[i].processSample(fbSig); // LP only on recirculating path
+            const float in     = damped + inputTap(i) * (xinGain * xIn); // undamped input injection keeps ER brighter
             
             lines[i].pushSample(in);
             out[i] = v[i];
@@ -238,7 +235,11 @@ private:
     std::array<DelayLine::InterpMode, NumLines> interpMode { DelayLine::InterpMode::Linear, DelayLine::InterpMode::Linear, DelayLine::InterpMode::Linear, DelayLine::InterpMode::Linear, DelayLine::InterpMode::Linear, DelayLine::InterpMode::Linear, DelayLine::InterpMode::Linear, DelayLine::InterpMode::Linear };
 
     int modMaskVariant = 0; // 0: longest half, 1: all but two shortest
-    bool frozen = false;
+
+    // Freeze ramp state
+    float freezeXf = 0.0f;     // 0 = normal, 1 = fully frozen
+    float freezeTarget = 0.0f; // target state
+    float freezeAlpha = 0.02f; // per-sample smoothing coefficient
 };
 
 } // namespace hgr::dsp
