@@ -48,6 +48,13 @@ Build HungryGhostLimiter with CMake
     ./build/debug/HGLTests_DSP_artefacts/Debug/HGLTests_DSP
     ./build/debug/HGLTests_Proc_artefacts/Debug/HGLTests_Proc
 
+Build HungryGhostSaturation with CMake
+- From src/HungryGhostSaturation:
+  - Configure (Xcode):
+    cmake -S . -B build/xcode -G Xcode
+  - Build VST3 (Release):
+    cmake --build build/xcode --config Release --target HungryGhostSaturation_VST3
+
 One-time: build JUCE extras (Projucer, AudioPluginHost)
 - Use JUCE’s CMake with the Xcode generator (recommended on macOS):
   - From repo root (recommended):
@@ -118,9 +125,9 @@ VSCode integration
 - Explorer cleanup (.vscode/settings.json): hides JUCE, JuceLibraryCode, build, Builds folders.
 
 GitHub Actions
-- CI workflow builds tests and plugin via CMake (Xcode generator), uploads VST3 artefacts.
-- Release workflow builds, zips the VST3 bundle with ditto, and publishes a GitHub Release.
-- Both workflows clean src/HungryGhostLimiter/build before configure to avoid stale caches.
+- Consolidated CI builds Limiter (with tests), Reverb, and Saturation via CMake (Xcode generator), uploads VST3 artefacts for each plugin.
+- Consolidated Release builds Limiter, Reverb, and Saturation, zips the .vst3 bundles with ditto, and publishes a single GitHub Release per v* tag.
+- Workflows clean each plugin's build directory before configure to avoid stale caches.
 
 UI Overview:
 - Big Knob Animation 100 Frames 310*640 px.
