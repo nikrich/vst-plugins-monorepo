@@ -20,7 +20,7 @@ public:
     }
 
     void setDelaySamples(int d) { dl.setBaseDelaySamples(d); }
-    void setGain(float gIn) { g = std::clamp(gIn, 0.0f, 0.999f); }
+    void setGain(float gIn) { g = std::clamp(gIn, -0.75f, 0.75f); }
 
     inline float processSample(float x) noexcept
     {
