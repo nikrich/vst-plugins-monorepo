@@ -25,11 +25,14 @@ private:
     juce::Slider inKnob, driveKnob, preTiltKnob, mixKnob, outKnob, asymKnob;
     juce::ComboBox modelBox, osBox, postLPBox, channelModeBox;
     juce::ToggleButton autoGainToggle { "Auto Gain" };
+    juce::ToggleButton vocalToggle { "Vocal Lo-Fi" };
+    juce::Slider vocalAmt;
 
     // Attachments
     std::unique_ptr<APVTS::SliderAttachment>  inAtt, driveAtt, preTiltAtt, mixAtt, outAtt, asymAtt;
     std::unique_ptr<APVTS::ComboBoxAttachment> modelAtt, osAtt, postLPAtt, channelModeAtt;
-    std::unique_ptr<APVTS::ButtonAttachment>   autoGainAtt;
+    std::unique_ptr<APVTS::ButtonAttachment>   autoGainAtt, vocalAtt;
+    std::unique_ptr<APVTS::SliderAttachment>   vocalAmtAtt;
 
     void styleKnob(juce::Slider& s, double min, double max, double step, double def, const juce::String& suffix = {});
     void styleCombo(juce::ComboBox& c);

@@ -4,7 +4,7 @@
 
 class HungryGhostSaturationAudioProcessor : public juce::AudioProcessor {
 public:
-    enum class Model { TANH = 0, ATAN = 1, SOFT = 2, FEXP = 3 };
+    enum class Model { TANH = 0, ATAN = 1, SOFT = 2, FEXP = 3, AMP = 4 };
     enum class ChannelMode { Stereo = 0, DualMono = 1, MonoSum = 2 };
 
     HungryGhostSaturationAudioProcessor();
@@ -70,6 +70,40 @@ private:
     bool enablePreTilt { false };
     bool enablePostLP { false };
 
+    // Vocal Lo-Fi block (switchable)
+    bool vocalLoFi { false };
+    juce::dsp::IIR::Filter<float> hpVox, lpVox, presencePeak;
+
+    struct SimpleComp {
+        float sr { 48000.0f };
+        float thresh { -12.0f };
+        float ratio { 8.0f };
+        float attMs { 3.0f };
+        float relMs { 40.0f };
+        float env { 1.0f };
+        void prepare(double s) { sr = (float) s; env = 1.0f; }
+        float process(float x)
+        {
+            const float in = x;
+            const float db = juce::Decibels::gainToDecibels(juce::jmax(std::abs(in), 1.0e-9f));
+            const float over = db - thresh;
+            const float grDb = over > 0.0f ? (over - over / ratio) : 0.0f;
+            const float target = juce::Decibels::decibelsToGain(-grDb);
+            const float aA = std::exp(-1.0f / (0.001f * attMs * sr));
+            const float aR = std::exp(-1.0f / (0.001f * relMs * sr));
+            env = (target < env ? aA * env + (1.0f - aA) * target
+                                 : aR * env + (1.0f - aR) * target);
+            return in * env;
+        }
+    };
+    std::vector<SimpleComp> comps; // per-channel
+    juce::SmoothedValue<float> vocalAmtSmoothed; // ramp for vocal amount
+
+    juce::dsp::DelayLine<float, juce::dsp::DelayLineInterpolationTypes::Linear> slap { 48000 };
+    juce::dsp::IIR::Filter<float> slapHP, slapLP;
+    float slapTimeMs { 95.0f }, slapMix { 0.15f }, slapFb { 0.05f };
+    bool slapReady { false }; // guard to avoid popSample on unprepared delay line
+
     // Oversampling
     std::unique_ptr<juce::dsp::Oversampling<float>> oversampling;
     int osFactor { 2 };
@@ -92,12 +126,22 @@ private:
     // Buffers
     juce::AudioBuffer<float> dryBuffer;   // dry tap after input trim
     juce::AudioBuffer<float> monoScratch; // for mono-sum processing
+    juce::AudioBuffer<float> voxDry;      // for Vocal Lo-Fi crossfade
 
     // Internal helpers
     void updateParameters();
     void updateOversamplingIfNeeded(int numChannels);
     void resetDSPState();
     static float mapDriveDbToK(float driveDb);
+
+    static inline float diodeSat(float x, float kk, float a)
+    {
+        float xp = juce::jlimit(-1.0f, 1.0f, x + 0.5f * a);
+        float xn = juce::jlimit(-1.0f, 1.0f, x - 0.5f * a);
+        auto f = [kk](float v){ return 1.0f - std::exp(-kk * juce::jlimit(-1.0f, 1.0f, v)); };
+        float y = 0.7f * (f(xp) - f(-xn));
+        return juce::jlimit(-1.0f, 1.0f, y);
+    }
 
     int currentProgram { 0 }; // 0 = Default, 1 = Obvious
 };

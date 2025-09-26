@@ -34,17 +34,37 @@ void HungryGhostSaturationAudioProcessor::prepareToPlay(double newSampleRate, in
     postDeTilt.prepare(spec);
     postLP.prepare(spec);
 
+    // Vocal Lo-Fi processing
+    hpVox.prepare(spec);
+    presencePeak.prepare(spec);
+    lpVox.prepare(spec);
+    comps.assign((size_t) lastNumChannels, {});
+    for (auto& c : comps) c.prepare(sampleRate);
+
+    // slapback
+    slap.prepare(spec); // allocate internal buffer for 1 channel
+    slap.reset();
+    slap.setDelay((int) std::round(0.001 * slapTimeMs * sampleRate));
+    slapReady = true;
+    slapHP.prepare(spec);
+    slapLP.prepare(spec);
+    slapHP.coefficients = juce::dsp::IIR::Coefficients<float>::makeHighPass(sampleRate, 300.0f);
+    slapLP.coefficients = juce::dsp::IIR::Coefficients<float>::makeLowPass (sampleRate, 5500.0f);
+
     // Smoothers
     mixSmoothed.reset(sampleRate, 0.02);
     makeupSmoothedL.reset(sampleRate, 0.08);
     makeupSmoothedR.reset(sampleRate, 0.08);
+    vocalAmtSmoothed.reset(sampleRate, 0.03);
     mixSmoothed.setCurrentAndTargetValue(1.0f);
     makeupSmoothedL.setCurrentAndTargetValue(1.0f);
     makeupSmoothedR.setCurrentAndTargetValue(1.0f);
+    vocalAmtSmoothed.setCurrentAndTargetValue(apvts.getRawParameterValue("vocalAmt") != nullptr ? apvts.getRawParameterValue("vocalAmt")->load() : 1.0f);
 
     // Buffers
     dryBuffer.setSize(lastNumChannels, samplesPerBlock, false, true, true);
     monoScratch.setSize(1, samplesPerBlock, false, true, true);
+    voxDry.setSize(lastNumChannels, samplesPerBlock, false, true, true);
 
     // Oversampling
     updateParameters();
@@ -56,6 +76,7 @@ void HungryGhostSaturationAudioProcessor::releaseResources()
 {
     dryBuffer.setSize(0, 0);
     monoScratch.setSize(0, 0);
+    slapReady = false;
 }
 
 bool HungryGhostSaturationAudioProcessor::isBusesLayoutSupported(const BusesLayout& layouts) const
@@ -163,6 +184,10 @@ void HungryGhostSaturationAudioProcessor::processBlock(juce::AudioBuffer<float>&
                         if (denom <= 1.0e-6f) denom = 1.0e-6f;
                         y = (1.0f - std::exp(-k * xa)) / denom;
                     } break;
+                    case Model::AMP:
+                    {
+                        y = diodeSat(x, k, asym);
+                    } break;
                 }
                 d[n] = juce::jlimit(-1.0f, 1.0f, y);
             }
@@ -202,6 +227,62 @@ void HungryGhostSaturationAudioProcessor::processBlock(juce::AudioBuffer<float>&
         juce::dsp::AudioBlock<float> b (*procBuf);
         juce::dsp::ProcessContextReplacing<float> c (b);
         postLP.process(c);
+    }
+
+    // Vocal Lo-Fi chain (band-limit + presence + compressor + slapback)
+    if (vocalLoFi)
+    {
+        // Read amount and set smoother
+        if (auto* p = apvts.getRawParameterValue("vocalAmt"))
+            vocalAmtSmoothed.setTargetValue(p->load());
+        
+        // keep dry copy for amount crossfade
+        voxDry.makeCopyOf(*procBuf, true);
+        {
+            juce::dsp::AudioBlock<float> b (*procBuf);
+            juce::dsp::ProcessContextReplacing<float> c (b);
+            hpVox.process(c);
+            presencePeak.process(c);
+            lpVox.process(c);
+        }
+        // Fast leveling comp per sample, per channel
+        for (int ch = 0; ch < procChans; ++ch)
+        {
+            auto* d = procBuf->getWritePointer(ch);
+            auto& cp = comps[(size_t) juce::jmin(ch, (int)comps.size()-1)];
+            for (int n = 0; n < numSamples; ++n)
+                d[n] = cp.process(d[n]);
+        }
+        // Mono slapback: add centered return (only if prepared)
+        if (slapReady)
+        {
+            for (int n = 0; n < numSamples; ++n)
+            {
+                float monoIn = 0.0f;
+                for (int ch = 0; ch < procChans; ++ch) monoIn += procBuf->getReadPointer(ch)[n];
+                monoIn *= (1.0f / (float) juce::jmax(1, procChans));
+                float dly = slap.popSample(0);
+                float fb = dly; fb = slapHP.processSample(fb); fb = slapLP.processSample(fb);
+                slap.pushSample(0, monoIn + slapFb * fb);
+                float add = slapMix * dly; // return
+                for (int ch = 0; ch < procChans; ++ch)
+                {
+                    float s = procBuf->getSample(ch, n) + add;
+                    procBuf->setSample(ch, n, s);
+                }
+            }
+        }
+        // Amount crossfade: wet (procBuf) vs dry (voxDry)
+        for (int n = 0; n < numSamples; ++n)
+        {
+            float a = juce::jlimit(0.0f, 1.0f, vocalAmtSmoothed.getNextValue());
+            for (int ch = 0; ch < procChans; ++ch)
+            {
+                float dry = voxDry.getSample(ch, n);
+                float wet = procBuf->getSample(ch, n);
+                procBuf->setSample(ch, n, dry * (1.0f - a) + wet * a);
+            }
+        }
     }
 
     // Auto gain: compute from dryBuffer (input) and procBuf (wet, pre-output trim)
@@ -351,7 +432,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout HungryGhostSaturationAudioPr
 
     params.emplace_back(std::make_unique<juce::AudioParameterFloat>("in",   "Input",  juce::NormalisableRange<float>(-24.f, 24.f, 0.01f), 0.f));
     params.emplace_back(std::make_unique<juce::AudioParameterFloat>("drive","Drive",  juce::NormalisableRange<float>(0.f, 36.f, 0.01f), 12.f));
-    params.emplace_back(std::make_unique<juce::AudioParameterChoice>("model","Model", juce::StringArray{"TANH","ATAN","SOFT","FEXP"}, 0));
+    params.emplace_back(std::make_unique<juce::AudioParameterChoice>("model","Model", juce::StringArray{"TANH","ATAN","SOFT","FEXP","AMP"}, 0));
     params.emplace_back(std::make_unique<juce::AudioParameterFloat>("asym", "Asymmetry", juce::NormalisableRange<float>(-0.5f, 0.5f, 0.001f), 0.f));
     params.emplace_back(std::make_unique<juce::AudioParameterFloat>("pretilt","PreTilt dB/oct", juce::NormalisableRange<float>(0.f, 6.f, 0.01f), 0.f));
     params.emplace_back(std::make_unique<juce::AudioParameterChoice>("postlp","Post LP", juce::StringArray{"Off","22k","16k","12k","8k"}, 0));
@@ -360,6 +441,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout HungryGhostSaturationAudioPr
     params.emplace_back(std::make_unique<juce::AudioParameterBool>("autoGain","Auto Gain", true));
     params.emplace_back(std::make_unique<juce::AudioParameterFloat>("out",  "Output", juce::NormalisableRange<float>(-24.f, 24.f, 0.01f), 0.f));
     params.emplace_back(std::make_unique<juce::AudioParameterChoice>("channelMode", "Channel Mode", juce::StringArray{"Stereo","DualMono","MonoSum"}, 0));
+    params.emplace_back(std::make_unique<juce::AudioParameterBool>("vocal", "Vocal Lo-Fi", false));
+    params.emplace_back(std::make_unique<juce::AudioParameterFloat>("vocalAmt", "Vocal Amount", juce::NormalisableRange<float>(0.f, 1.f, 0.001f), 1.0f));
 
     return { params.begin(), params.end() };
 }
@@ -379,7 +462,7 @@ void HungryGhostSaturationAudioProcessor::updateParameters()
     asym = apvts.getRawParameterValue("asym")->load();
 
     const int mdl = (int) apvts.getRawParameterValue("model")->load();
-    model = (Model) juce::jlimit(0, 3, mdl);
+    model = (Model) juce::jlimit(0, 4, mdl);
 
     const int chm = (int) apvts.getRawParameterValue("channelMode")->load();
     channelMode = (ChannelMode) juce::jlimit(0, 2, chm);
@@ -417,6 +500,15 @@ void HungryGhostSaturationAudioProcessor::updateParameters()
     }
 
     autoGain = apvts.getRawParameterValue("autoGain")->load() > 0.5f;
+
+    // Vocal Lo-Fi switch and filters
+    vocalLoFi = apvts.getRawParameterValue("vocal")->load() > 0.5f;
+    if (vocalLoFi)
+    {
+        hpVox.coefficients = juce::dsp::IIR::Coefficients<float>::makeHighPass(sampleRate, 220.0f, 0.707f);
+        presencePeak.coefficients = juce::dsp::IIR::Coefficients<float>::makePeakFilter(sampleRate, 2000.0f, 0.9f, juce::Decibels::decibelsToGain(4.5f));
+        lpVox.coefficients = juce::dsp::IIR::Coefficients<float>::makeLowPass(sampleRate, 6500.0f, 0.707f);
+    }
 }
 
 void HungryGhostSaturationAudioProcessor::updateOversamplingIfNeeded(int numChannels)

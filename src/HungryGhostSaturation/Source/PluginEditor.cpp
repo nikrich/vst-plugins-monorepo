@@ -21,6 +21,9 @@ HungryGhostSaturationAudioProcessorEditor::HungryGhostSaturationAudioProcessorEd
     for (auto* s : { &inKnob, &driveKnob, &preTiltKnob, &mixKnob, &outKnob, &asymKnob }) addAndMakeVisible(s);
     for (auto* c : { &modelBox, &osBox, &postLPBox, &channelModeBox }) addAndMakeVisible(c);
     addAndMakeVisible(autoGainToggle);
+    addAndMakeVisible(vocalToggle);
+    styleKnob(vocalAmt, 0.0, 1.0, 0.001, 1.0, "");
+    addAndMakeVisible(vocalAmt);
 
     // Populate combo choices to match parameter layout indices
     modelBox.addItemList({ "TANH", "ATAN", "SOFT", "FEXP" }, 1);
@@ -42,6 +45,8 @@ HungryGhostSaturationAudioProcessorEditor::HungryGhostSaturationAudioProcessorEd
     postLPAtt     = std::make_unique<APVTS::ComboBoxAttachment>(apvts, "postlp", postLPBox);
     channelModeAtt= std::make_unique<APVTS::ComboBoxAttachment>(apvts, "channelMode", channelModeBox);
     autoGainAtt   = std::make_unique<APVTS::ButtonAttachment>(apvts, "autoGain", autoGainToggle);
+    vocalAtt      = std::make_unique<APVTS::ButtonAttachment>(apvts, "vocal", vocalToggle);
+    vocalAmtAtt   = std::make_unique<APVTS::SliderAttachment>(apvts, "vocalAmt", vocalAmt);
 
     // Enable asym only for FEXP model
     auto onModelChange = [this]()
@@ -94,15 +99,17 @@ void HungryGhostSaturationAudioProcessorEditor::resized()
         placeKnob(rr, asymKnob);
     }
 
-    // Row2: Model, OS, PostLP, ChannelMode, AutoGain
+    // Row2: Model, OS, PostLP, ChannelMode, AutoGain, Vocal, Vocal Amt
     {
         auto rr = row2.reduced(8);
-        const int boxW = juce::jmax(120, rr.getWidth() / 5 - gap);
+        const int boxW = juce::jmax(90, rr.getWidth() / 7 - gap);
         modelBox.setBounds(rr.removeFromLeft(boxW)); rr.removeFromLeft(gap);
         osBox.setBounds(rr.removeFromLeft(boxW)); rr.removeFromLeft(gap);
         postLPBox.setBounds(rr.removeFromLeft(boxW)); rr.removeFromLeft(gap);
         channelModeBox.setBounds(rr.removeFromLeft(boxW)); rr.removeFromLeft(gap);
-        autoGainToggle.setBounds(rr.removeFromLeft(100));
+        autoGainToggle.setBounds(rr.removeFromLeft(100)); rr.removeFromLeft(gap);
+        vocalToggle.setBounds(rr.removeFromLeft(110)); rr.removeFromLeft(gap);
+        vocalAmt.setBounds(rr.removeFromLeft(80));
     }
 }
 
