@@ -24,10 +24,10 @@ public:
     bool producesMidi() const override { return false; }
     double getTailLengthSeconds() const override { return 0.0; }
 
-    int getNumPrograms() override { return 1; }
-    int getCurrentProgram() override { return 0; }
-    void setCurrentProgram(int) override {}
-    const juce::String getProgramName(int) override { return {}; }
+    int getNumPrograms() override { return 2; }
+    int getCurrentProgram() override { return currentProgram; }
+    void setCurrentProgram(int index) override;
+    const juce::String getProgramName(int index) override;
     void changeProgramName(int, const juce::String&) override {}
 
     void getStateInformation(juce::MemoryBlock& destData) override;
@@ -55,6 +55,7 @@ private:
     Model model { Model::TANH };
     float driveDb { 12.0f };
     float k { 2.5f };
+    float driveGain { 1.0f }; // NEW: pre-gain into the shaper
     float invTanhK { 1.0f };
     float invAtanK { 1.0f };
     float asym { 0.0f };
@@ -97,4 +98,6 @@ private:
     void updateOversamplingIfNeeded(int numChannels);
     void resetDSPState();
     static float mapDriveDbToK(float driveDb);
+
+    int currentProgram { 0 }; // 0 = Default, 1 = Obvious
 };

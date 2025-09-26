@@ -142,7 +142,7 @@ void HungryGhostSaturationAudioProcessor::processBlock(juce::AudioBuffer<float>&
             auto* d = upBlk.getChannelPointer(ch);
             for (size_t n = 0; n < upBlk.getNumSamples(); ++n)
             {
-                float x = juce::jlimit(-1.0f, 1.0f, d[n]);
+                float x = juce::jlimit(-1.0f, 1.0f, d[n] * driveGain); // NEW: pre-gain into shaper
                 float y = 0.0f;
                 switch (model)
                 {
@@ -153,7 +153,8 @@ void HungryGhostSaturationAudioProcessor::processBlock(juce::AudioBuffer<float>&
                     case Model::SOFT:
                     {
                         float u = juce::jlimit(-1.0f, 1.0f, k * x);
-                        y = softClipCubic1(u);
+                        const float normSoft = 1.0f / (1.0f + 0.20f * (k - 1.0f)); // gentler normalization for more feel
+                        y = normSoft * softClipCubic1(u);
                     } break;
                     case Model::FEXP:
                     {
@@ -263,11 +264,14 @@ void HungryGhostSaturationAudioProcessor::processBlock(juce::AudioBuffer<float>&
             makeupR = makeupL;
         }
 
-        // Apply makeup to wet path only
+        // Apply makeup to wet path only (smooth ramp)
         for (int ch = 0; ch < procChans; ++ch)
         {
-            float mk = (ch == 0 ? makeupL : makeupR);
-            procBuf->applyGain(ch, 0, numSamples, mk);
+            auto& mk = (ch == 0 ? makeupSmoothedL : makeupSmoothedR);
+            float g0 = mk.getCurrentValue();
+            mk.skip(numSamples);
+            float g1 = mk.getCurrentValue();
+            procBuf->applyGainRamp(ch, 0, numSamples, g0, g1);
         }
     }
 
@@ -316,6 +320,14 @@ void HungryGhostSaturationAudioProcessor::processBlock(juce::AudioBuffer<float>&
     // Clear any output channels above our processing channels
     for (int ch = lastNumChannels; ch < getTotalNumOutputChannels(); ++ch)
         buffer.clear(ch, 0, numSamples);
+
+    // Gentle safety clip after the final mix
+    for (int ch = 0; ch < getTotalNumOutputChannels(); ++ch)
+    {
+        auto* d = buffer.getWritePointer(ch);
+        for (int n = 0; n < numSamples; ++n)
+            d[n] = juce::jlimit(-1.05f, 1.05f, d[n]);
+    }
 }
 
 void HungryGhostSaturationAudioProcessor::getStateInformation(juce::MemoryBlock& destData)
@@ -360,6 +372,7 @@ void HungryGhostSaturationAudioProcessor::updateParameters()
 
     driveDb = apvts.getRawParameterValue("drive")->load();
     k = mapDriveDbToK(driveDb);
+    driveGain = juce::Decibels::decibelsToGain(driveDb); // NEW: pre-gain into shaper
     invTanhK = 1.0f / (std::tanh(k) + 1.0e-6f);
     invAtanK = 1.0f / (std::atan(k) + 1.0e-6f);
 
@@ -447,6 +460,45 @@ float HungryGhostSaturationAudioProcessor::mapDriveDbToK(float dB)
 juce::AudioProcessorEditor* HungryGhostSaturationAudioProcessor::createEditor()
 {
     return new HungryGhostSaturationAudioProcessorEditor(*this);
+}
+
+void HungryGhostSaturationAudioProcessor::setCurrentProgram(int index)
+{
+    currentProgram = juce::jlimit(0, getNumPrograms() - 1, index);
+    
+    // Set parameter values based on program
+    if (index == 1) // "Obvious" preset
+    {
+        *apvts.getRawParameterValue("in") = 6.0f;      // +6 dB input
+        *apvts.getRawParameterValue("drive") = 30.0f;   // 30 dB drive
+        *apvts.getRawParameterValue("model") = 2.0f;    // SOFT
+        *apvts.getRawParameterValue("pretilt") = 6.0f;  // +6 dB/oct
+        *apvts.getRawParameterValue("os") = 0.0f;       // 1x (no oversampling)
+        *apvts.getRawParameterValue("mix") = 1.0f;      // 100%
+        *apvts.getRawParameterValue("autoGain") = 0.0f; // OFF
+        *apvts.getRawParameterValue("postlp") = 0.0f;   // Off
+    }
+    else // Default preset
+    {
+        *apvts.getRawParameterValue("in") = 0.0f;
+        *apvts.getRawParameterValue("drive") = 12.0f;
+        *apvts.getRawParameterValue("model") = 0.0f;    // TANH
+        *apvts.getRawParameterValue("pretilt") = 0.0f;
+        *apvts.getRawParameterValue("os") = 1.0f;       // 2x
+        *apvts.getRawParameterValue("mix") = 1.0f;
+        *apvts.getRawParameterValue("autoGain") = 1.0f; // ON
+        *apvts.getRawParameterValue("postlp") = 0.0f;
+    }
+}
+
+const juce::String HungryGhostSaturationAudioProcessor::getProgramName(int index)
+{
+    switch (index)
+    {
+        case 0: return "Default";
+        case 1: return "Obvious";
+        default: return "Unknown";
+    }
 }
 
 // JUCE plugin entry point
