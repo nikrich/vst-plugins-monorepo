@@ -38,6 +38,8 @@ void HungryGhostSaturationAudioProcessor::prepareToPlay(double newSampleRate, in
     hpVox.prepare(spec);
     presencePeak.prepare(spec);
     lpVox.prepare(spec);
+    hpVox2.prepare(spec);
+    lpVox2.prepare(spec);
     comps.assign((size_t) lastNumChannels, {});
     for (auto& c : comps) c.prepare(sampleRate);
 
@@ -244,6 +246,8 @@ void HungryGhostSaturationAudioProcessor::processBlock(juce::AudioBuffer<float>&
             hpVox.process(c);
             presencePeak.process(c);
             lpVox.process(c);
+            int vstyleNow = (int) (apvts.getRawParameterValue("vocalStyle") ? apvts.getRawParameterValue("vocalStyle")->load() : 0);
+            if (vstyleNow == 1) { hpVox2.process(c); lpVox2.process(c); }
         }
         // Fast leveling comp per sample, per channel
         for (int ch = 0; ch < procChans; ++ch)
@@ -443,6 +447,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout HungryGhostSaturationAudioPr
     params.emplace_back(std::make_unique<juce::AudioParameterChoice>("channelMode", "Channel Mode", juce::StringArray{"Stereo","DualMono","MonoSum"}, 0));
     params.emplace_back(std::make_unique<juce::AudioParameterBool>("vocal", "Vocal Lo-Fi", false));
     params.emplace_back(std::make_unique<juce::AudioParameterFloat>("vocalAmt", "Vocal Amount", juce::NormalisableRange<float>(0.f, 1.f, 0.001f), 1.0f));
+    params.emplace_back(std::make_unique<juce::AudioParameterChoice>("vocalStyle", "Vocal Style", juce::StringArray{"Normal","Telephone"}, 0));
 
     return { params.begin(), params.end() };
 }
@@ -505,9 +510,25 @@ void HungryGhostSaturationAudioProcessor::updateParameters()
     vocalLoFi = apvts.getRawParameterValue("vocal")->load() > 0.5f;
     if (vocalLoFi)
     {
-        hpVox.coefficients = juce::dsp::IIR::Coefficients<float>::makeHighPass(sampleRate, 220.0f, 0.707f);
-        presencePeak.coefficients = juce::dsp::IIR::Coefficients<float>::makePeakFilter(sampleRate, 2000.0f, 0.9f, juce::Decibels::decibelsToGain(4.5f));
-        lpVox.coefficients = juce::dsp::IIR::Coefficients<float>::makeLowPass(sampleRate, 6500.0f, 0.707f);
+        int vstyle = (int) (apvts.getRawParameterValue("vocalStyle") ? apvts.getRawParameterValue("vocalStyle")->load() : 0);
+        if (vstyle == 1) // Telephone
+        {
+            hpVox.coefficients  = juce::dsp::IIR::Coefficients<float>::makeHighPass(sampleRate, 300.0f, 0.707f);
+            hpVox2.coefficients = juce::dsp::IIR::Coefficients<float>::makeHighPass(sampleRate, 300.0f, 0.707f);
+            presencePeak.coefficients = juce::dsp::IIR::Coefficients<float>::makePeakFilter(sampleRate, 2000.0f, 0.9f, juce::Decibels::decibelsToGain(7.0f));
+            lpVox.coefficients  = juce::dsp::IIR::Coefficients<float>::makeLowPass (sampleRate, 5000.0f, 0.707f);
+            lpVox2.coefficients = juce::dsp::IIR::Coefficients<float>::makeLowPass (sampleRate, 5000.0f, 0.707f);
+            for (auto& c : comps) { c.thresh = -18.0f; c.ratio = 10.0f; c.attMs = 2.0f; c.relMs = 30.0f; }
+        }
+        else // Normal
+        {
+            hpVox.coefficients = juce::dsp::IIR::Coefficients<float>::makeHighPass(sampleRate, 220.0f, 0.707f);
+            presencePeak.coefficients = juce::dsp::IIR::Coefficients<float>::makePeakFilter(sampleRate, 2000.0f, 0.9f, juce::Decibels::decibelsToGain(4.5f));
+            lpVox.coefficients = juce::dsp::IIR::Coefficients<float>::makeLowPass(sampleRate, 6500.0f, 0.707f);
+            hpVox2.coefficients = hpVox.coefficients; // defaults
+            lpVox2.coefficients = lpVox.coefficients;
+            for (auto& c : comps) { c.thresh = -12.0f; c.ratio = 8.0f; c.attMs = 3.0f; c.relMs = 40.0f; }
+        }
     }
 }
 

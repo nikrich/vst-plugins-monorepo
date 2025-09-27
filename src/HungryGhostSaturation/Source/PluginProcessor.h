@@ -73,6 +73,7 @@ private:
     // Vocal Lo-Fi block (switchable)
     bool vocalLoFi { false };
     juce::dsp::IIR::Filter<float> hpVox, lpVox, presencePeak;
+    juce::dsp::IIR::Filter<float> hpVox2, lpVox2; // for steeper Telephone style
 
     struct SimpleComp {
         float sr { 48000.0f };

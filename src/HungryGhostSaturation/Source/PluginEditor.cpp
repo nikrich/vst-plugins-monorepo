@@ -24,6 +24,9 @@ HungryGhostSaturationAudioProcessorEditor::HungryGhostSaturationAudioProcessorEd
     addAndMakeVisible(vocalToggle);
     styleKnob(vocalAmt, 0.0, 1.0, 0.001, 1.0, "");
     addAndMakeVisible(vocalAmt);
+    styleCombo(vocalStyleBox);
+    vocalStyleBox.addItemList({"Normal","Telephone"}, 1);
+    addAndMakeVisible(vocalStyleBox);
 
     // Populate combo choices to match parameter layout indices
     modelBox.addItemList({ "TANH", "ATAN", "SOFT", "FEXP" }, 1);
@@ -47,6 +50,7 @@ HungryGhostSaturationAudioProcessorEditor::HungryGhostSaturationAudioProcessorEd
     autoGainAtt   = std::make_unique<APVTS::ButtonAttachment>(apvts, "autoGain", autoGainToggle);
     vocalAtt      = std::make_unique<APVTS::ButtonAttachment>(apvts, "vocal", vocalToggle);
     vocalAmtAtt   = std::make_unique<APVTS::SliderAttachment>(apvts, "vocalAmt", vocalAmt);
+    vocalStyleAtt = std::make_unique<APVTS::ComboBoxAttachment>(apvts, "vocalStyle", vocalStyleBox);
 
     // Enable asym only for FEXP model
     auto onModelChange = [this]()
@@ -99,17 +103,18 @@ void HungryGhostSaturationAudioProcessorEditor::resized()
         placeKnob(rr, asymKnob);
     }
 
-    // Row2: Model, OS, PostLP, ChannelMode, AutoGain, Vocal, Vocal Amt
+    // Row2: Model, OS, PostLP, ChannelMode, AutoGain, Vocal, Vocal Amt, Vocal Style
     {
         auto rr = row2.reduced(8);
-        const int boxW = juce::jmax(90, rr.getWidth() / 7 - gap);
+        const int boxW = juce::jmax(80, rr.getWidth() / 8 - gap);
         modelBox.setBounds(rr.removeFromLeft(boxW)); rr.removeFromLeft(gap);
         osBox.setBounds(rr.removeFromLeft(boxW)); rr.removeFromLeft(gap);
         postLPBox.setBounds(rr.removeFromLeft(boxW)); rr.removeFromLeft(gap);
         channelModeBox.setBounds(rr.removeFromLeft(boxW)); rr.removeFromLeft(gap);
         autoGainToggle.setBounds(rr.removeFromLeft(100)); rr.removeFromLeft(gap);
         vocalToggle.setBounds(rr.removeFromLeft(110)); rr.removeFromLeft(gap);
-        vocalAmt.setBounds(rr.removeFromLeft(80));
+        vocalAmt.setBounds(rr.removeFromLeft(80)); rr.removeFromLeft(gap);
+        vocalStyleBox.setBounds(rr.removeFromLeft(120));
     }
 }
 

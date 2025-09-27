@@ -27,12 +27,14 @@ private:
     juce::ToggleButton autoGainToggle { "Auto Gain" };
     juce::ToggleButton vocalToggle { "Vocal Lo-Fi" };
     juce::Slider vocalAmt;
+    juce::ComboBox vocalStyleBox;
 
     // Attachments
     std::unique_ptr<APVTS::SliderAttachment>  inAtt, driveAtt, preTiltAtt, mixAtt, outAtt, asymAtt;
     std::unique_ptr<APVTS::ComboBoxAttachment> modelAtt, osAtt, postLPAtt, channelModeAtt;
     std::unique_ptr<APVTS::ButtonAttachment>   autoGainAtt, vocalAtt;
     std::unique_ptr<APVTS::SliderAttachment>   vocalAmtAtt;
+    std::unique_ptr<APVTS::ComboBoxAttachment> vocalStyleAtt;
 
     void styleKnob(juce::Slider& s, double min, double max, double step, double def, const juce::String& suffix = {});
     void styleCombo(juce::ComboBox& c);
