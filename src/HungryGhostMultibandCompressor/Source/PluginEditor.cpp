@@ -1,7 +1,6 @@
 #include "PluginEditor.h"
 #include "PluginProcessor.h"
 #include <Charts/MBCLineChart.h>
-#include <Charts/CompressorChart.h>
 
 using CommonUI::Charts::MBCLineChart;
 
@@ -16,9 +15,7 @@ HungryGhostMultibandCompressorAudioProcessorEditor::HungryGhostMultibandCompress
     // Make spectrum appear larger: tighter dB window centered near 0 dB
     chart->setYRangeDb(-36.0f, 12.0f);
 
-    // Interactive compressor curve chart
-    compChart = std::make_unique<CommonUI::Charts::CompressorChart>();
-    compChart->setRanges(-60.0f, 0.0f, -60.0f, 12.0f);
+    // Remove bottom compressor curve chart; we'll use knobs instead
 
     // Band selector
     bandLabel.setText("Band", juce::dontSendNotification);
@@ -26,19 +23,7 @@ HungryGhostMultibandCompressorAudioProcessorEditor::HungryGhostMultibandCompress
     bandSel.addItem("1", 1);
     bandSel.addItem("2", 2);
 
-    // When band changes, reflect current APVTS values in the chart
-    bandSel.onChange = [this]
-    {
-        const int b = juce::jlimit(1, 2, bandSel.getSelectedId() > 0 ? bandSel.getSelectedId() : 1);
-        auto rp = [&](const juce::String& id){ return proc.apvts.getRawParameterValue(id)->load(); };
-        const auto id = [b](const char* name){ return juce::String("band.") + juce::String(b) + "." + name; };
-        if (compChart)
-        {
-            compChart->setThresholdDb(rp(id("threshold_dB")));
-            compChart->setRatio(rp(id("ratio")));
-            compChart->setKneeDb(rp(id("knee_dB")));
-        }
-    };
+    // Band selection handled later to reattach knob attachments
 
     // Chart drags -> write back to APVTS for the selected band
     auto idFor = [this](const char* name)
@@ -46,57 +31,61 @@ HungryGhostMultibandCompressorAudioProcessorEditor::HungryGhostMultibandCompress
         const int b = juce::jlimit(1, 2, bandSel.getSelectedId() > 0 ? bandSel.getSelectedId() : 1);
         return juce::String("band.") + juce::String(b) + "." + name;
     };
-    if (compChart)
-    {
-        compChart->onThresholdChanged = [this, idFor](float v)
-        {
-            if (auto* p = proc.apvts.getParameter(idFor("threshold_dB")))
-                p->setValueNotifyingHost(p->convertTo0to1(v));
-        };
-        compChart->onRatioChanged = [this, idFor](float v)
-        {
-            if (auto* p = proc.apvts.getParameter(idFor("ratio")))
-                p->setValueNotifyingHost(p->convertTo0to1(v));
-        };
-        compChart->onKneeChanged = [this, idFor](float v)
-        {
-            if (auto* p = proc.apvts.getParameter(idFor("knee_dB")))
-                p->setValueNotifyingHost(p->convertTo0to1(v));
-        };
-    }
+    // compChart removed; APVTS writes happen via knob attachments
 
-    // Controls row (threshold/ratio per band)
-    auto configSlider = [](juce::Slider& s){ s.setSliderStyle(juce::Slider::LinearVertical); s.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18); };
-    configSlider(th1); configSlider(th2); configSlider(ra1); configSlider(ra2);
-    lth1.setText("Thresh 1", juce::dontSendNotification);
-    lth2.setText("Thresh 2", juce::dontSendNotification);
-    lra1.setText("Ratio 1", juce::dontSendNotification);
-    lra2.setText("Ratio 2", juce::dontSendNotification);
-    lth1.attachToComponent(&th1, false); lth2.attachToComponent(&th2, false);
-    lra1.attachToComponent(&ra1, false); lra2.attachToComponent(&ra2, false);
+    // Remove old per-band vertical sliders row (replaced by knobs)
 
-    addAndMakeVisible(th1); addAndMakeVisible(th2); addAndMakeVisible(ra1); addAndMakeVisible(ra2);
-
-    // Add charts and selector
+    // Add chart and selector
     addAndMakeVisible(*chart);
     addAndMakeVisible(bandLabel);
     addAndMakeVisible(bandSel);
-    addAndMakeVisible(*compChart);
 
     // Enable overlay on the spectrum chart so it mimics Pro-Q aesthetics
     chart->enableOverlay(true);
 
-    // Attach slider ranges & initial values from APVTS
-    auto get = [&](const char* id){ return proc.apvts.getParameter(id); };
-    if (auto* p = get("band.1.threshold_dB")) th1.setRange(p->getNormalisableRange().start, p->getNormalisableRange().end); th1.setValue(proc.apvts.getRawParameterValue("band.1.threshold_dB")->load());
-    if (auto* p = get("band.2.threshold_dB")) th2.setRange(p->getNormalisableRange().start, p->getNormalisableRange().end); th2.setValue(proc.apvts.getRawParameterValue("band.2.threshold_dB")->load());
-    if (auto* p = get("band.1.ratio"))       ra1.setRange(p->getNormalisableRange().start, p->getNormalisableRange().end); ra1.setValue(proc.apvts.getRawParameterValue("band.1.ratio")->load());
-    if (auto* p = get("band.2.ratio"))       ra2.setRange(p->getNormalisableRange().start, p->getNormalisableRange().end); ra2.setValue(proc.apvts.getRawParameterValue("band.2.ratio")->load());
+    // Configure bottom knobs (filmstrip-backed if available)
+    auto setupRotary = [&](juce::Slider& s)
+    {
+        s.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
+        s.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 60, 18);
+        s.setLookAndFeel(&donutLNF);
+    };
+    setupRotary(knobThresh); setupRotary(knobAttack); setupRotary(knobRelease);
+    setupRotary(knobKnee); setupRotary(knobRatio); setupRotary(knobMix); setupRotary(knobOutput);
 
-    th1.onValueChange = [this]{ if (auto* p = proc.apvts.getParameter("band.1.threshold_dB")) p->setValueNotifyingHost(p->convertTo0to1((float)th1.getValue())); };
-    th2.onValueChange = [this]{ if (auto* p = proc.apvts.getParameter("band.2.threshold_dB")) p->setValueNotifyingHost(p->convertTo0to1((float)th2.getValue())); };
-    ra1.onValueChange = [this]{ if (auto* p = proc.apvts.getParameter("band.1.ratio"))       p->setValueNotifyingHost(p->convertTo0to1((float)ra1.getValue())); };
-    ra2.onValueChange = [this]{ if (auto* p = proc.apvts.getParameter("band.2.ratio"))       p->setValueNotifyingHost(p->convertTo0to1((float)ra2.getValue())); };
+    addAndMakeVisible(knobThresh);
+    addAndMakeVisible(knobAttack);
+    addAndMakeVisible(knobRelease);
+    addAndMakeVisible(knobKnee);
+    addAndMakeVisible(knobRatio);
+    addAndMakeVisible(knobMix);
+    addAndMakeVisible(knobOutput);
+
+    // Helper to (re)attach band-specific knobs based on current band selection
+    auto attachBandKnobs = [this](int band)
+    {
+        const auto id = [band](const char* name){ return juce::String("band.") + juce::String(band) + "." + name; };
+        attThresh.reset(); attAttack.reset(); attRelease.reset(); attKnee.reset(); attRatio.reset(); attMix.reset();
+        attThresh = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(proc.apvts, id("threshold_dB"), knobThresh);
+        attAttack = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(proc.apvts, id("attack_ms"),    knobAttack);
+        attRelease= std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(proc.apvts, id("release_ms"),   knobRelease);
+        attKnee   = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(proc.apvts, id("knee_dB"),      knobKnee);
+        attRatio  = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(proc.apvts, id("ratio"),        knobRatio);
+        attMix    = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(proc.apvts, id("mix_pct"),      knobMix);
+    };
+
+    // Attach output trim (global)
+    attOutput = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(proc.apvts, "global.outputTrim_dB", knobOutput);
+
+    // Initial band knob attachments
+    attachBandKnobs(1);
+
+    // Update attachments when band selection changes
+    bandSel.onChange = [this, attachBandKnobs]
+    {
+        const int b = juce::jlimit(1, 2, bandSel.getSelectedId() > 0 ? bandSel.getSelectedId() : 1);
+        attachBandKnobs(b);
+    };
 
     // Default band and initial sync
     bandSel.setSelectedId(1, juce::dontSendNotification);
@@ -202,12 +191,6 @@ HungryGhostMultibandCompressorAudioProcessorEditor::~HungryGhostMultibandCompres
     // Ensure no further timer callbacks can run while members are being destroyed
     stopTimer();
 
-    // Clear any lambdas that capture `this` to avoid accidental late invocations
-    th1.onValueChange = {};
-    th2.onValueChange = {};
-    ra1.onValueChange = {};
-    ra2.onValueChange = {};
-
     // Explicitly release chart to avoid use-after-free if any async paints are queued
     chart.reset();
 }
@@ -231,20 +214,27 @@ void HungryGhostMultibandCompressorAudioProcessorEditor::resized()
     bandLabel.setBounds(selRow.removeFromLeft(60));
     bandSel.setBounds(selRow.removeFromLeft(80).reduced(0, 2));
 
-    // Compressor curve chart
-    auto compArea = r.removeFromTop(220);
-    if (compChart)
-        compChart->setBounds(compArea);
+    // Knob row
+    auto row = r.removeFromTop(160).reduced(12);
+    auto place = [&](juce::Slider& k, const char* label)
+    {
+        auto cw = row.removeFromLeft(row.getWidth() / (r.getWidth() > 0 ? 7 : 7));
+        k.setBounds(cw.removeFromTop(120));
+        // simple label under each knob
+        juce::Label* lbl = new juce::Label({}, label);
+        lbl->setJustificationType(juce::Justification::centred);
+        addAndMakeVisible(lbl);
+        lbl->setBounds(cw.removeFromTop(18));
+    };
+    place(knobThresh,  "Threshold");
+    place(knobAttack,  "Attack");
+    place(knobRelease, "Release");
+    place(knobKnee,    "Knee");
+    place(knobRatio,   "Ratio");
+    place(knobMix,     "Mix");
+    place(knobOutput,  "Output");
 
-    // Bottom controls row (existing)
-    auto row = r.removeFromTop(100).reduced(8);
-    const int w = row.getWidth() / 4;
-    th1.setBounds(row.removeFromLeft(w));
-    th2.setBounds(row.removeFromLeft(w));
-    ra1.setBounds(row.removeFromLeft(w));
-    ra2.setBounds(row.removeFromLeft(w));
-
-    // Selected-node knob strip
+    // Selected-node knob strip (keep small strip for frequency and selected-band fine control)
     auto knobs = r.reduced(8);
     const int kw = knobs.getWidth() / 5;
     selFreq.setBounds(knobs.removeFromLeft(kw));
@@ -298,12 +288,7 @@ void HungryGhostMultibandCompressorAudioProcessorEditor::timerCallback()
     const int b = juce::jlimit(1, 2, bandSel.getSelectedId() > 0 ? bandSel.getSelectedId() : 1);
     const auto id = [b](const char* name){ return juce::String("band.") + juce::String(b) + "." + name; };
     auto rp = [&](const juce::String& pid){ return proc.apvts.getRawParameterValue(pid)->load(); };
-    if (compChart)
-    {
-        compChart->setThresholdDb(rp(id("threshold_dB")));
-        compChart->setRatio(rp(id("ratio")));
-        compChart->setKneeDb(rp(id("knee_dB")));
-    }
+    // No compChart anymore
     chart->setPrimaryBands(
         proc.apvts.getRawParameterValue("xover.1.Hz")->load(),
         proc.apvts.getRawParameterValue("band.1.threshold_dB")->load(),

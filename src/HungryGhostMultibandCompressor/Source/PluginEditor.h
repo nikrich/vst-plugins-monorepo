@@ -1,8 +1,9 @@
 #pragma once
 #include <juce_gui_extra/juce_gui_extra.h>
 #include "PluginProcessor.h"
+#include <Styling/LookAndFeels.h>
 
-namespace CommonUI { namespace Charts { class MBCLineChart; class CompressorChart; } }
+namespace CommonUI { namespace Charts { class MBCLineChart; } }
 
 class HungryGhostMultibandCompressorAudioProcessorEditor : public juce::AudioProcessorEditor, private juce::Timer
 {
@@ -17,15 +18,15 @@ private:
 
     HungryGhostMultibandCompressorAudioProcessor& proc;
     std::unique_ptr<CommonUI::Charts::MBCLineChart> chart;
-    std::unique_ptr<CommonUI::Charts::CompressorChart> compChart;
 
     // Band selector for controlling which band's curve is shown/edited
     juce::ComboBox bandSel;
     juce::Label    bandLabel;
 
-    // Simple per-band controls row (threshold/ratio) for two bands
-    juce::Slider th1, th2, ra1, ra2;
-    juce::Label  lth1, lth2, lra1, lra2;
+    // Bottom knobs using CommonUI DonutKnobLNF
+    DonutKnobLNF donutLNF;
+    juce::Slider knobThresh, knobAttack, knobRelease, knobKnee, knobRatio, knobMix, knobOutput;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> attThresh, attAttack, attRelease, attKnee, attRatio, attMix, attOutput;
 
     // Selected-node knobs (like Pro-Q bottom strip)
     juce::Slider selFreq, selThresh, selRatio, selKnee;
