@@ -13,7 +13,8 @@ HungryGhostMultibandCompressorAudioProcessorEditor::HungryGhostMultibandCompress
     // Create and configure chart BEFORE calling setSize (which triggers resized())
     chart = std::make_unique<MBCLineChart>();
     chart->setXRangeHz(20.0f, 20000.0f);
-    chart->setYRangeDb(-60.0f, 12.0f);
+    // Make spectrum appear larger: tighter dB window centered near 0 dB
+    chart->setYRangeDb(-36.0f, 12.0f);
 
     // Interactive compressor curve chart
     compChart = std::make_unique<CommonUI::Charts::CompressorChart>();
@@ -220,8 +221,8 @@ void HungryGhostMultibandCompressorAudioProcessorEditor::resized()
 {
     auto r = getLocalBounds().reduced(12);
 
-    // Top spectrum chart
-    auto top = r.removeFromTop(240);
+    // Top spectrum chart — increase height for a larger waveform
+    auto top = r.removeFromTop(320);
     if (chart)
         chart->setBounds(top);
 
@@ -265,12 +266,14 @@ void HungryGhostMultibandCompressorAudioProcessorEditor::timerCallback()
         std::vector<float> window(N, 0.0f);
         for (int i=0;i<N;++i) window[i] = 0.5f*(1.0f - std::cos(2.0f*juce::MathConstants<float>::pi*i/(N-1)));
         std::vector<float> fftBuf(2*N, 0.0f);
-        for (int i=0;i<count && i<N; ++i) fftBuf[i*2] = time[i] * window[i];
+        const int used = juce::jlimit(1, N, count);
+        for (int i=0;i<used; ++i) fftBuf[i*2] = time[i] * window[i];
         fft.performRealOnlyForwardTransform(fftBuf.data());
+        const float scaleDiv = (float) juce::jmax(used, 1);
         for (int i=1;i<N/2;++i)
         {
             const float re = fftBuf[2*i]; const float im = fftBuf[2*i+1];
-            const float mag = std::sqrt(re*re + im*im) / (float)N;
+            const float mag = std::sqrt(re*re + im*im) / scaleDiv;
             out[(size_t)i] = juce::Decibels::gainToDecibels(std::max(mag, 1.0e-6f)) - 6.0f;
         }
     };

@@ -29,6 +29,7 @@ public:
         float specStroke = 1.6f;
         float gridStroke = 1.0f;
         float grRadius = 3.5f;
+        float spectrumDisplayBoostDb = 24.0f; // visual gain for spectrum lines
 
         // Overlay styling (used when primaries shown)
         juce::Colour overlayCurve{ 0xFF8E9EFF };
@@ -68,6 +69,8 @@ public:
         postSpectrumDb = prevPostSpectrumDb;
         spMinHz = specMinHz; spMaxHz = specMaxHz; repaint();
     }
+
+    void setSpectrumDisplayGainDb(float boost) { style.spectrumDisplayBoostDb = boost; repaint(); }
 
     // ===== Pro-Q-like overlay API =====
     void enableOverlay(bool b) { overlayEnabled = b; repaint(); }
@@ -305,11 +308,26 @@ private:
         g.drawRect(a);
         // Draw a few log-f verticals (decades from 20..20k)
         const float marks[] = {20.f,50.f,100.f,200.f,500.f,1000.f,2000.f,5000.f,10000.f,20000.f};
+        g.setFont(11.0f);
         for (float f : marks) if (f >= xMinHz && f <= xMaxHz)
-            g.drawLine(xToPx(f,a), a.getY(), xToPx(f,a), a.getBottom(), (f==1000.f?1.2f:0.6f));
-        // Horizontal dB lines every 6 dB
+        {
+            const float x = xToPx(f,a);
+            g.drawLine(x, a.getY(), x, a.getBottom(), (f==1000.f?1.2f:0.6f));
+            // Frequency labels at the bottom
+            juce::String label;
+            if (f >= 1000.f) label = juce::String((int)(f/1000.f)) + "k";
+            else label = juce::String((int) f);
+            g.setColour(juce::Colours::white.withAlpha(0.45f));
+            g.drawFittedText(label, juce::Rectangle<int>((int)x-18, (int)a.getBottom()-16, 36, 14), juce::Justification::centred, 1);
+            g.setColour(style.grid);
+        }
+        // Horizontal dB lines every 6 dB (0 dB in yellow and thicker)
         for (float y = std::ceil(yMinDb/6.f)*6.f; y <= yMaxDb; y+=6.f)
-            g.drawLine(a.getX(), yToPx(y,a), a.getRight(), yToPx(y,a), (y==0.f?1.2f:0.6f));
+        {
+            const bool zero = juce::approximatelyEqual(y, 0.0f);
+            g.setColour(zero ? style.combinedCurve.withAlpha(0.7f) : style.grid);
+            g.drawLine(a.getX(), yToPx(y,a), a.getRight(), yToPx(y,a), zero ? 1.8f : (y==0.f?1.2f:0.6f));
+        }
     }
 
     void drawBands(juce::Graphics& g, juce::Rectangle<float> a)
@@ -334,8 +352,9 @@ private:
         juce::Path p; bool started=false;
         float prevYdB = 0.0f; bool havePrev=false;
         const int S = (int) spectrumDb.size();
+        const bool havePre = S > 1;
 
-        for (int i=0; i<N; ++i)
+        for (int i=0; i<N && havePre; ++i)
         {
             const float fracX = (float) i / (float) (N - 1);
             // Map screen X -> log frequency within chart range
@@ -355,13 +374,13 @@ private:
             prevYdB = ydB; havePrev = true;
 
             const float x = juce::jmap((float) i, 0.0f, (float) (N - 1), a.getX(), a.getRight());
-            const float y = yToPx(ydB, a);
+            const float y = yToPx(juce::jlimit(yMinDb, yMaxDb, ydB + style.spectrumDisplayBoostDb), a);
 
             if (!started) { p.startNewSubPath(x,y); started=true; }
             else p.lineTo(x,y);
         }
 
-        if (started)
+        if (started && havePre)
         {
             // Gradient fill under PRE spectrum (bottom -> near curve)
             juce::Path fillPath = p;
@@ -372,9 +391,9 @@ private:
             g.setFillType(juce::FillType(grad));
             g.fillPath(fillPath);
 
-            // Stroke PRE spectrum
+        // Stroke PRE spectrum
             g.setColour(style.spectrum);
-            g.strokePath(p, juce::PathStrokeType(style.specStroke));
+            g.strokePath(p, juce::PathStrokeType(style.specStroke + 0.2f));
         }
 
         // Draw POST spectrum (yellow) if available using same sampling
@@ -383,7 +402,8 @@ private:
             juce::Path pp; bool stp=false;
             float prevYdB2 = 0.0f; bool havePrev2=false;
             const int S2 = (int) postSpectrumDb.size();
-            for (int i=0; i<N; ++i)
+            const bool havePost = S2 > 1;
+            for (int i=0; i<N && havePost; ++i)
             {
                 const float fracX = (float) i / (float) (N - 1);
                 const float logHz = juce::jmap(fracX, 0.0f, 1.0f, std::log10(xMinHz), std::log10(xMaxHz));
@@ -397,7 +417,7 @@ private:
                 const float ydB = havePrev2 ? (0.85f * prevYdB2 + 0.15f * ydBraw) : ydBraw;
                 prevYdB2 = ydB; havePrev2 = true;
                 const float x = juce::jmap((float) i, 0.0f, (float) (N - 1), a.getX(), a.getRight());
-                const float y = yToPx(ydB, a);
+                const float y = yToPx(juce::jlimit(yMinDb, yMaxDb, ydB + style.spectrumDisplayBoostDb), a);
                 if (!stp) { pp.startNewSubPath(x,y); stp=true; } else pp.lineTo(x,y);
             }
             g.setColour(style.spectrumPost.withAlpha(0.95f));
