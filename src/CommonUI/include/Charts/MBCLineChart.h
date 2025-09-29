@@ -19,8 +19,9 @@ public:
     struct Style {
         juce::Colour bg { 0xFF0F1116 };
         juce::Colour grid { juce::Colours::white.withAlpha(0.12f) };
-        juce::Colour spectrum { juce::Colour(0xFF66E1FF) }; // brighter cyan
+        juce::Colour spectrum { juce::Colour(0xFF66E1FF) }; // brighter cyan (pre)
         juce::Colour spectrumFill { juce::Colours::white.withAlpha(0.06f) }; // light grey underlay
+        juce::Colour spectrumPost { 0xFFFFD45A }; // media yellow (post)
         juce::Colour gr { juce::Colour(0xFFFF7F7F) };
         juce::Colour crossover { juce::Colours::white.withAlpha(0.35f) };
         juce::Colour bandFillA { juce::Colours::purple.withAlpha(0.06f) };
@@ -52,7 +53,20 @@ public:
     // Provide spectrum in dB per bin mapped to Hz range [specMinHz, specMaxHz]
     void setSpectrum(const std::vector<float>& magsDb, float specMinHz, float specMaxHz)
     {
-        spectrumDb = magsDb; spMinHz = specMinHz; spMaxHz = specMaxHz; repaint();
+        // Temporal smoothing (lerp) to reduce erratic motion between frames
+        if (prevSpectrumDb.size() != magsDb.size()) prevSpectrumDb = magsDb;
+        for (size_t i = 0; i < magsDb.size(); ++i)
+            prevSpectrumDb[i] = prevSpectrumDb[i] * spectrumTemporalBlend + magsDb[i] * (1.0f - spectrumTemporalBlend);
+        spectrumDb = prevSpectrumDb;
+        spMinHz = specMinHz; spMaxHz = specMaxHz; repaint();
+    }
+    void setPostSpectrum(const std::vector<float>& magsDb, float specMinHz, float specMaxHz)
+    {
+        if (prevPostSpectrumDb.size() != magsDb.size()) prevPostSpectrumDb = magsDb;
+        for (size_t i = 0; i < magsDb.size(); ++i)
+            prevPostSpectrumDb[i] = prevPostSpectrumDb[i] * spectrumTemporalBlend + magsDb[i] * (1.0f - spectrumTemporalBlend);
+        postSpectrumDb = prevPostSpectrumDb;
+        spMinHz = specMinHz; spMaxHz = specMaxHz; repaint();
     }
 
     // ===== Pro-Q-like overlay API =====
@@ -89,6 +103,8 @@ public:
     std::function<void(int bandIndex, float newRatio)> onChangeRatio;
     std::function<void(int bandIndex, float newKneeDb)> onChangeKnee;
     std::function<void(int newSelectedIndex)> onSelectionChanged;
+    // Decorative band callback: index (0-based among decor), freq, gainDb, Q
+    std::function<void(int index, float freqHz, float gainDb, float q)> onDecorChanged;
 
     struct SelectedInfo { float freqHz=0, thresholdDb=0, ratio=0, kneeDb=0; CurveType type=CurveType::Bell; bool isPrimary=true; int index=-1; };
     SelectedInfo getSelectedInfo() const
@@ -132,6 +148,7 @@ public:
                 case BandParam::Ratio: b.ratio = juce::jlimit(1.0f, 20.0f, (float)v); break;
                 case BandParam::Knee: b.kneeDb = juce::jlimit(0.0f, 24.0f, (float)v); b.q = kneeToQ(b.kneeDb); break;
                 case BandParam::Type: default: break; }
+            if (onDecorChanged) onDecorChanged((int)(selected-2), b.freqHz, b.gainDb, b.q);
         }
         repaint();
     }
@@ -230,6 +247,7 @@ public:
                 const float deltaPix = dragStart.y - p.y;
                 b.q = juce::jlimit(0.01f, 64.0f, startBand.q + deltaPix * 0.01f);
             }
+            if (onDecorChanged) onDecorChanged((int)(selected-2), b.freqHz, b.gainDb, b.q);
             repaint();
         }
     }
@@ -250,11 +268,14 @@ public:
             // For decorative bands, wheel adjusts Q directly
             auto& b = decorBands[(size_t)(selected-2)];
             b.q = juce::jlimit(0.01f, 64.0f, b.q + (float)wheel.deltaY * 0.5f);
+            if (onDecorChanged) onDecorChanged((int)(selected-2), b.freqHz, b.gainDb, b.q);
         }
         repaint();
     }
 
 private:
+    void setSpectrumTemporalBlend(float alpha) { spectrumTemporalBlend = juce::jlimit(0.0f, 0.99f, alpha); }
+
     float xToPx(float hz, juce::Rectangle<float> a) const
     {
         const float lx = std::log10(juce::jlimit(xMinHz, xMaxHz, hz));
@@ -306,7 +327,7 @@ private:
 
     void drawSpectrum(juce::Graphics& g, juce::Rectangle<float> a)
     {
-        if (spectrumDb.empty()) return;
+        if (spectrumDb.empty() && postSpectrumDb.empty()) return;
 
         // Higher-detail rendering: resample per pixel column with log-frequency mapping
         const int N = juce::jmax(2, (int) a.getWidth());
@@ -340,17 +361,48 @@ private:
             else p.lineTo(x,y);
         }
 
-        // Fill under the spectrum to the bottom of the chart with light grey opacity
-        juce::Path fillPath = p;
-        fillPath.lineTo(a.getRight(), a.getBottom());
-        fillPath.lineTo(a.getX(), a.getBottom());
-        fillPath.closeSubPath();
-        g.setColour(style.spectrumFill);
-        g.fillPath(fillPath);
+        if (started)
+        {
+            // Gradient fill under PRE spectrum (bottom -> near curve)
+            juce::Path fillPath = p;
+            fillPath.lineTo(a.getRight(), a.getBottom());
+            fillPath.lineTo(a.getX(), a.getBottom());
+            fillPath.closeSubPath();
+            juce::ColourGradient grad(style.spectrumFill, a.getX(), a.getBottom(), style.spectrumFill.withAlpha(0.0f), a.getX(), a.getY(), false);
+            g.setFillType(juce::FillType(grad));
+            g.fillPath(fillPath);
 
-        // Stroke the spectrum
-        g.setColour(style.spectrum);
-        g.strokePath(p, juce::PathStrokeType(style.specStroke));
+            // Stroke PRE spectrum
+            g.setColour(style.spectrum);
+            g.strokePath(p, juce::PathStrokeType(style.specStroke));
+        }
+
+        // Draw POST spectrum (yellow) if available using same sampling
+        if (!postSpectrumDb.empty())
+        {
+            juce::Path pp; bool stp=false;
+            float prevYdB2 = 0.0f; bool havePrev2=false;
+            const int S2 = (int) postSpectrumDb.size();
+            for (int i=0; i<N; ++i)
+            {
+                const float fracX = (float) i / (float) (N - 1);
+                const float logHz = juce::jmap(fracX, 0.0f, 1.0f, std::log10(xMinHz), std::log10(xMaxHz));
+                const float hz = std::pow(10.0f, logHz);
+                const float pos = juce::jlimit(0.0f, 1.0f, (hz - spMinHz) / juce::jmax(1.0f, (spMaxHz - spMinHz)));
+                const float fidx = pos * (float) (S2 - 1);
+                const int i0 = (int) std::floor(fidx);
+                const int i1 = juce::jlimit(0, S2-1, i0 + 1);
+                const float t = fidx - (float) i0;
+                const float ydBraw = (1.0f - t) * postSpectrumDb[(size_t) juce::jlimit(0,S2-1,i0)] + t * postSpectrumDb[(size_t) i1];
+                const float ydB = havePrev2 ? (0.85f * prevYdB2 + 0.15f * ydBraw) : ydBraw;
+                prevYdB2 = ydB; havePrev2 = true;
+                const float x = juce::jmap((float) i, 0.0f, (float) (N - 1), a.getX(), a.getRight());
+                const float y = yToPx(ydB, a);
+                if (!stp) { pp.startNewSubPath(x,y); stp=true; } else pp.lineTo(x,y);
+            }
+            g.setColour(style.spectrumPost.withAlpha(0.95f));
+            g.strokePath(pp, juce::PathStrokeType(style.specStroke + 0.2f));
+        }
     }
 
     void drawCrossovers(juce::Graphics& g, juce::Rectangle<float> a)
@@ -381,6 +433,7 @@ private:
         decorBands.push_back(b);
         selected = (int)decorBands.size() - 1 + 2; // select the new band
         if (onSelectionChanged) onSelectionChanged(selected);
+        if (onDecorChanged) onDecorChanged((int)decorBands.size()-1, b.freqHz, b.gainDb, b.q);
         repaint();
     }
 
@@ -551,7 +604,14 @@ private:
 
     std::vector<float> crossovers; // size N-1 for N bands
     std::vector<float> grDb;       // size N bands
-    std::vector<float> spectrumDb; float spMinHz = 20.0f, spMaxHz = 20000.0f;
+    std::vector<float> spectrumDb;     // pre-processed
+    std::vector<float> postSpectrumDb; // post-processed
+    std::vector<float> prevSpectrumDb;     // temporal smoothing state
+    std::vector<float> prevPostSpectrumDb; // temporal smoothing state
+    float spMinHz = 20.0f, spMaxHz = 20000.0f;
+
+    // Temporal smoothing factor (0..0.99), higher = smoother/slower
+    float spectrumTemporalBlend { 0.80f };
 
     // Overlay state
     bool overlayEnabled { false };

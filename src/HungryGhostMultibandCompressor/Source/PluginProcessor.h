@@ -50,16 +50,19 @@ private:
 
     std::atomic<int> reportedLatency { 0 };
 
-    // Analyzer FIFO (mono, decimated) and GR meters per band
-    std::unique_ptr<juce::AbstractFifo> analyzerFifo;
-    std::vector<float> analyzerRing;
+    // Analyzer FIFOs (mono, decimated) and GR meters per band
+    std::unique_ptr<juce::AbstractFifo> analyzerFifoPre;
+    std::unique_ptr<juce::AbstractFifo> analyzerFifoPost;
+    std::vector<float> analyzerRingPre;
+    std::vector<float> analyzerRingPost;
     int analyzerDecimate = 4;
 
     std::atomic<float> grBandDb[6] { 0,0,0,0,0,0 };
 
 public:
     // Pull analyzer samples into dst (returns count)
-    int readAnalyzer(float* dst, int maxSamples);
+    int readAnalyzerPre(float* dst, int maxSamples);
+    int readAnalyzerPost(float* dst, int maxSamples);
     float getBandGrDb(int index) const { if (index < 0 || index >= 6) return 0.0f; return grBandDb[index].load(); }
 
     // ====== M1 DSP graph state ======

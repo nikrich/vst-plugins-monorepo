@@ -82,10 +82,12 @@ void HungryGhostMultibandCompressorAudioProcessor::prepareToPlay(double sr, int 
     // Reset EQ filters
     for (auto& b : eq) { b.reset(); }
 
-    // Analyzer FIFO setup (mono ring ~2 seconds at 48k / decimate)
+    // Analyzer FIFO setup (mono rings ~2 seconds at 48k / decimate)
     const int ringSize = 48000 * 2 / analyzerDecimate;
-    analyzerRing.assign((size_t) juce::jmax(4096, ringSize), 0.0f);
-    analyzerFifo.reset(new juce::AbstractFifo((int) analyzerRing.size()));
+    analyzerRingPre.assign((size_t) juce::jmax(4096, ringSize), 0.0f);
+    analyzerRingPost.assign((size_t) juce::jmax(4096, ringSize), 0.0f);
+    analyzerFifoPre.reset(new juce::AbstractFifo((int) analyzerRingPre.size()));
+    analyzerFifoPost.reset(new juce::AbstractFifo((int) analyzerRingPost.size()));
 }
 
 void HungryGhostMultibandCompressorAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer&)
@@ -117,6 +119,25 @@ void HungryGhostMultibandCompressorAudioProcessor::processBlock(juce::AudioBuffe
     // Split into bands (copy input to dry bands for delta before processing)
     bandLowDry.makeCopyOf(buffer, true);
     bandHighDry.makeCopyOf(buffer, true);
+
+    // Push PRE analyzer mono samples (decimated) from input
+    if (analyzerFifoPre)
+    {
+        int write = analyzerFifoPre->getFreeSpace();
+        int pushed = 0;
+        for (int n = 0; n < numSmps && pushed < write; ++n)
+        {
+            if ((n % analyzerDecimate) == 0)
+            {
+                const float m = 0.5f * (bandLowDry.getSample(0, n) + bandLowDry.getSample(juce::jmin(1, numCh-1), n));
+                int start1, size1, start2, size2;
+                analyzerFifoPre->prepareToWrite(1, start1, size1, start2, size2);
+                if (size1 > 0) { analyzerRingPre[(size_t) start1] = m; analyzerFifoPre->finishedWrite(1); ++pushed; }
+                else break;
+            }
+        }
+    }
+
     splitter->process(buffer, bandLowDry, bandHighDry);
 
     // Configure per-band params from APVTS (bands 1 & 2)
@@ -202,25 +223,6 @@ void HungryGhostMultibandCompressorAudioProcessor::processBlock(juce::AudioBuffe
         }
     }
 
-    // Push analyzer mono samples (decimated) after processing
-    if (analyzerFifo)
-    {
-        int write = analyzerFifo->getFreeSpace(); // in samples
-        // Only push up to free space using decimation
-        int pushed = 0;
-        for (int n = 0; n < numSmps && pushed < write; ++n)
-        {
-            if ((n % analyzerDecimate) == 0)
-            {
-                const float m = 0.5f * (buffer.getSample(0, n) + buffer.getSample(juce::jmin(1, numCh-1), n));
-                int start1, size1, start2, size2;
-                analyzerFifo->prepareToWrite(1, start1, size1, start2, size2);
-                if (size1 > 0) { analyzerRing[(size_t) start1] = m; analyzerFifo->finishedWrite(1); ++pushed; }
-                else break;
-            }
-        }
-    }
-
     // ===== Parallel EQ stage (after compressor) =====
     {
         auto coeffFor = [&](int type, float freq, float q, float gainDb)
@@ -269,20 +271,50 @@ void HungryGhostMultibandCompressorAudioProcessor::processBlock(juce::AudioBuffe
     for (int ch = 0; ch < numCh; ++ch)
         buffer.applyGain(ch, 0, numSmps, g);
 
+    // Now push POST analyzer after EQ and output trim so yellow line reflects final output
+    if (analyzerFifoPost)
+    {
+        int write = analyzerFifoPost->getFreeSpace(); // in samples
+        int pushed = 0;
+        for (int n = 0; n < numSmps && pushed < write; ++n)
+        {
+            if ((n % analyzerDecimate) == 0)
+            {
+                const float m = 0.5f * (buffer.getSample(0, n) + buffer.getSample(juce::jmin(1, numCh-1), n));
+                int start1, size1, start2, size2;
+                analyzerFifoPost->prepareToWrite(1, start1, size1, start2, size2);
+                if (size1 > 0) { analyzerRingPost[(size_t) start1] = m; analyzerFifoPost->finishedWrite(1); ++pushed; }
+                else break;
+            }
+        }
+    }
+
     // Clear any extra channels
     for (int ch = numCh; ch < buffer.getNumChannels(); ++ch)
         buffer.clear(ch, 0, numSmps);
 }
 
-int HungryGhostMultibandCompressorAudioProcessor::readAnalyzer(float* dst, int maxSamples)
+int HungryGhostMultibandCompressorAudioProcessor::readAnalyzerPre(float* dst, int maxSamples)
 {
-    if (!analyzerFifo || analyzerRing.empty() || maxSamples <= 0) return 0;
+    if (!analyzerFifoPre || analyzerRingPre.empty() || maxSamples <= 0) return 0;
     int start1, size1, start2, size2;
-    analyzerFifo->prepareToRead(maxSamples, start1, size1, start2, size2);
+    analyzerFifoPre->prepareToRead(maxSamples, start1, size1, start2, size2);
     int read = 0;
-    if (size1 > 0) { std::memcpy(dst, analyzerRing.data() + start1, (size_t) size1 * sizeof(float)); read += size1; }
-    if (size2 > 0) { std::memcpy(dst + read, analyzerRing.data() + start2, (size_t) size2 * sizeof(float)); read += size2; }
-    analyzerFifo->finishedRead(read);
+    if (size1 > 0) { std::memcpy(dst, analyzerRingPre.data() + start1, (size_t) size1 * sizeof(float)); read += size1; }
+    if (size2 > 0) { std::memcpy(dst + read, analyzerRingPre.data() + start2, (size_t) size2 * sizeof(float)); read += size2; }
+    analyzerFifoPre->finishedRead(read);
+    return read;
+}
+
+int HungryGhostMultibandCompressorAudioProcessor::readAnalyzerPost(float* dst, int maxSamples)
+{
+    if (!analyzerFifoPost || analyzerRingPost.empty() || maxSamples <= 0) return 0;
+    int start1, size1, start2, size2;
+    analyzerFifoPost->prepareToRead(maxSamples, start1, size1, start2, size2);
+    int read = 0;
+    if (size1 > 0) { std::memcpy(dst, analyzerRingPost.data() + start1, (size_t) size1 * sizeof(float)); read += size1; }
+    if (size2 > 0) { std::memcpy(dst + read, analyzerRingPost.data() + start2, (size_t) size2 * sizeof(float)); read += size2; }
+    analyzerFifoPost->finishedRead(read);
     return read;
 }
 

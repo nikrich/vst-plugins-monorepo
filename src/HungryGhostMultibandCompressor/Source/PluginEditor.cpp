@@ -175,6 +175,24 @@ HungryGhostMultibandCompressorAudioProcessorEditor::HungryGhostMultibandCompress
         }
     };
 
+    // Decorative bands -> wire into EQ APVTS (eq.1..eq.N)
+    chart->onDecorChanged = [this](int idx, float f, float gdb, float q)
+    {
+        const int bi = idx + 1; // map to 1-based eq band index
+        const juce::String pfx = "eq." + juce::String(bi) + ".";
+        auto set = [&](const juce::String& id, float v)
+        {
+            if (auto* p = proc.apvts.getParameter(pfx + id))
+                p->setValueNotifyingHost(p->convertTo0to1(v));
+        };
+        // Enable and set type to Bell
+        if (auto* p = proc.apvts.getParameter(pfx + "enabled")) p->setValueNotifyingHost(1.0f);
+        if (auto* p = proc.apvts.getParameter(pfx + "type"))    p->setValueNotifyingHost(p->convertTo0to1(0.0f));
+        set("freq_hz", f);
+        set("gain_db", gdb);
+        set("q", q);
+    };
+
     startTimerHz(30);
 }
 
@@ -238,26 +256,33 @@ void HungryGhostMultibandCompressorAudioProcessorEditor::resized()
 void HungryGhostMultibandCompressorAudioProcessorEditor::timerCallback()
 {
     // Analyzer: pull samples, compute FFT magnitude in dB for spectrum
-    static std::vector<float> timeBuf; static std::vector<float> specDb;
+    static std::vector<float> timeBuf; static std::vector<float> specPre; static std::vector<float> specPost;
     const int N = 1024; // small FFT for UI
-    if ((int) timeBuf.size() < N) { timeBuf.assign(N, 0.0f); specDb.assign(N/2, -120.0f); }
-    int read = proc.readAnalyzer(timeBuf.data(), N);
-    if (read > 0)
-    {
+    if ((int) timeBuf.size() < N) { timeBuf.assign(N, 0.0f); specPre.assign(N/2, -120.0f); specPost.assign(N/2, -120.0f); }
+
+    auto computeMag = [&](const float* time, int count, std::vector<float>& out){
         juce::dsp::FFT fft((int) std::log2(N));
         std::vector<float> window(N, 0.0f);
         for (int i=0;i<N;++i) window[i] = 0.5f*(1.0f - std::cos(2.0f*juce::MathConstants<float>::pi*i/(N-1)));
         std::vector<float> fftBuf(2*N, 0.0f);
-        for (int i=0;i<N;++i) fftBuf[i*2] = timeBuf[i] * window[i]; // real
+        for (int i=0;i<count && i<N; ++i) fftBuf[i*2] = time[i] * window[i];
         fft.performRealOnlyForwardTransform(fftBuf.data());
         for (int i=1;i<N/2;++i)
         {
             const float re = fftBuf[2*i]; const float im = fftBuf[2*i+1];
             const float mag = std::sqrt(re*re + im*im) / (float)N;
-            specDb[(size_t)i] = juce::Decibels::gainToDecibels(std::max(mag, 1.0e-6f)) - 6.0f;
+            out[(size_t)i] = juce::Decibels::gainToDecibels(std::max(mag, 1.0e-6f)) - 6.0f;
         }
-        chart->setSpectrum(specDb, 0.0f, (float) (proc.getSampleRate() * 0.5));
-    }
+    };
+
+    int readPre = proc.readAnalyzerPre(timeBuf.data(), N);
+    if (readPre > 0) { computeMag(timeBuf.data(), readPre, specPre); }
+
+    int readPost = proc.readAnalyzerPost(timeBuf.data(), N);
+    if (readPost > 0) { computeMag(timeBuf.data(), readPost, specPost); }
+
+    if (readPre > 0) chart->setSpectrum(specPre, 0.0f, (float) (proc.getSampleRate() * 0.5));
+    if (readPost > 0) chart->setPostSpectrum(specPost, 0.0f, (float) (proc.getSampleRate() * 0.5));
 
     // Crossovers + GR overlay
     std::vector<float> fcs; fcs.push_back(proc.apvts.getRawParameterValue("xover.1.Hz")->load());
