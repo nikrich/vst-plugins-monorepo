@@ -75,6 +75,19 @@ public:
     std::unique_ptr<hgmbc::CompressorBand>  compLow;
     std::unique_ptr<hgmbc::CompressorBand>  compHigh;
 
+    // ===== Parallel EQ Stage (Option B) =====
+static constexpr int kMaxEqBands = 16;
+    struct EqBandProc {
+        bool enabled = false;
+        int type = 0; // 0=Bell,1=LowShelf,2=HighShelf,3=LowPass,4=HighPass,5=Notch
+        float freq = 1000.0f;
+        float gainDb = 0.0f;
+        float q = 1.0f;
+        juce::dsp::IIR::Filter<float> filt[2];
+        void reset() { for (auto& f : filt) f.reset(); }
+    };
+    EqBandProc eq[kMaxEqBands];
+
     void ensureBandBuffers(int numChannels, int numSamples);
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(HungryGhostMultibandCompressorAudioProcessor)

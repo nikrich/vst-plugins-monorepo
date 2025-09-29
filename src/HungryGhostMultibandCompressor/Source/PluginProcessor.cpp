@@ -79,6 +79,9 @@ void HungryGhostMultibandCompressorAudioProcessor::prepareToPlay(double sr, int 
 
     ensureBandBuffers(getTotalNumInputChannels(), samplesPerBlockExpected);
 
+    // Reset EQ filters
+    for (auto& b : eq) { b.reset(); }
+
     // Analyzer FIFO setup (mono ring ~2 seconds at 48k / decimate)
     const int ringSize = 48000 * 2 / analyzerDecimate;
     analyzerRing.assign((size_t) juce::jmax(4096, ringSize), 0.0f);
@@ -218,6 +221,48 @@ void HungryGhostMultibandCompressorAudioProcessor::processBlock(juce::AudioBuffe
         }
     }
 
+    // ===== Parallel EQ stage (after compressor) =====
+    {
+        auto coeffFor = [&](int type, float freq, float q, float gainDb)
+        {
+            using Coeff = juce::dsp::IIR::Coefficients<float>;
+            const double fs = (double) sampleRateHz;
+            switch (type)
+            {
+                case 0: return Coeff::makePeakFilter(fs, freq, q, juce::Decibels::decibelsToGain(gainDb));
+                case 1: return Coeff::makeLowShelf(fs, freq, q, juce::Decibels::decibelsToGain(gainDb));
+                case 2: return Coeff::makeHighShelf(fs, freq, q, juce::Decibels::decibelsToGain(gainDb));
+                case 3: return Coeff::makeLowPass(fs, freq, q);
+                case 4: return Coeff::makeHighPass(fs, freq, q);
+                case 5: return Coeff::makeNotch(fs, freq, q);
+                default: return Coeff::makePeakFilter(fs, freq, q, 1.0f);
+            }
+        };
+
+        for (int bi = 1; bi <= kMaxEqBands; ++bi)
+        {
+            const juce::String pfx = "eq." + juce::String(bi) + ".";
+            const bool enabled = apvts.getRawParameterValue(pfx + "enabled")->load() > 0.5f;
+            if (!enabled) continue;
+            const int type = (int) apvts.getRawParameterValue(pfx + "type")->load();
+            const float freq = apvts.getRawParameterValue(pfx + "freq_hz")->load();
+            const float gainDb = apvts.getRawParameterValue(pfx + "gain_db")->load();
+            const float q = apvts.getRawParameterValue(pfx + "q")->load();
+
+            auto coeff = coeffFor(type, juce::jlimit(20.0f, sampleRateHz * 0.45f, freq), juce::jlimit(0.1f, 10.0f, q), gainDb);
+            for (int ch = 0; ch < numCh; ++ch)
+                eq[bi-1].filt[ch].coefficients = coeff;
+
+            juce::dsp::AudioBlock<float> blk(buffer);
+            for (int ch = 0; ch < numCh; ++ch)
+            {
+                auto cb = blk.getSingleChannelBlock((size_t) ch);
+                juce::dsp::ProcessContextReplacing<float> ctx(cb);
+                eq[bi-1].filt[ch].process(ctx);
+            }
+        }
+    }
+
     // Global output trim
     const float outTrimDb = apvts.getRawParameterValue("global.outputTrim_dB")->load();
     const float g = juce::Decibels::decibelsToGain(outTrimDb);
@@ -288,6 +333,22 @@ HungryGhostMultibandCompressorAudioProcessor::createParameterLayout()
 
     addBand(1);
     addBand(2);
+
+    // ===== EQ bands (up to 8) =====
+    auto hzRange = [](float lo, float hi){ NormalisableRange<float> r(lo, hi); r.setSkewForCentre(1000.0f); return r; };
+    for (int i = 1; i <= kMaxEqBands; ++i)
+    {
+        const auto id = [i](const char* name){ return juce::String("eq.") + juce::String(i) + "." + name; };
+        ps.push_back(std::make_unique<AudioParameterBool>(ParameterID{id("enabled"), 1}, juce::String("EQ ") + juce::String(i) + " Enabled", i==1));
+        ps.push_back(std::make_unique<AudioParameterChoice>(ParameterID{id("type"), 1}, juce::String("EQ ") + juce::String(i) + " Type",
+            StringArray{ "Bell", "LowShelf", "HighShelf", "LowPass", "HighPass", "Notch" }, 0));
+        ps.push_back(std::make_unique<AudioParameterFloat>(ParameterID{id("freq_hz"), 1}, juce::String("EQ ") + juce::String(i) + " Freq",
+            hzRange(20.0f, 20000.0f), (i==1 ? 1000.0f : 200.0f * (float) i)));
+        ps.push_back(std::make_unique<AudioParameterFloat>(ParameterID{id("gain_db"), 1}, juce::String("EQ ") + juce::String(i) + " Gain (dB)",
+            NormalisableRange<float>(-24.0f, 24.0f, 0.01f, 0.5f), 0.0f));
+        ps.push_back(std::make_unique<AudioParameterFloat>(ParameterID{id("q"), 1}, juce::String("EQ ") + juce::String(i) + " Q",
+            NormalisableRange<float>(0.1f, 10.0f, 0.0f, 0.5f), 1.0f));
+    }
 
     return { ps.begin(), ps.end() };
 }

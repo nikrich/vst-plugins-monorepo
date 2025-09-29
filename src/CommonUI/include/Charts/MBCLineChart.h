@@ -19,22 +19,28 @@ public:
     struct Style {
         juce::Colour bg { 0xFF0F1116 };
         juce::Colour grid { juce::Colours::white.withAlpha(0.12f) };
-        juce::Colour spectrum { juce::Colour(0xFF8AD1FF) };
+        juce::Colour spectrum { juce::Colour(0xFF66E1FF) }; // brighter cyan
+        juce::Colour spectrumFill { juce::Colours::white.withAlpha(0.06f) }; // light grey underlay
         juce::Colour gr { juce::Colour(0xFFFF7F7F) };
         juce::Colour crossover { juce::Colours::white.withAlpha(0.35f) };
-        juce::Colour bandFillA { juce::Colours::purple.withAlpha(0.08f) };
-        juce::Colour bandFillB { juce::Colours::blue.withAlpha(0.08f) };
-        float specStroke = 1.5f;
+        juce::Colour bandFillA { juce::Colours::purple.withAlpha(0.06f) };
+        juce::Colour bandFillB { juce::Colours::blue.withAlpha(0.06f) };
+        float specStroke = 1.6f;
         float gridStroke = 1.0f;
         float grRadius = 3.5f;
 
-        // Overlay styling
-        juce::Colour overlayCurve{ 0xFF7C9EFF };
-        juce::Colour overlayCurve2{ 0xFFFFB07C };
+        // Overlay styling (used when primaries shown)
+        juce::Colour overlayCurve{ 0xFF8E9EFF };
+        juce::Colour overlayCurve2{ 0xFFFFA56B };
         juce::Colour overlayDecor{ juce::Colours::white.withAlpha(0.10f) };
         juce::Colour nodeFill{ juce::Colours::orange };
         juce::Colour nodeFill2{ juce::Colours::deeppink };
+        juce::Colour combinedCurve{ 0xFFFFD45A }; // media yellow
         float nodeRadius = 6.0f;
+        float combinedStroke = 2.4f;
+        float otherCurveAlpha = 0.45f; // opacity for non-selected decorative curves
+        float selectedFillAlpha = 0.18f; // translucent fill for selected band to 0 dB line
+        float otherFillAlpha = 0.08f;    // translucent fill for non-selected bands
     };
 
     void setXRangeHz(float minHz, float maxHz) { xMinHz = juce::jmax(1.0f, minHz); xMaxHz = juce::jmax(xMinHz + 1.0f, maxHz); repaint(); }
@@ -51,6 +57,9 @@ public:
 
     // ===== Pro-Q-like overlay API =====
     void enableOverlay(bool b) { overlayEnabled = b; repaint(); }
+    void setShowPrimaries(bool b) { showPrimaries = b; repaint(); }
+    void enableGRMarkers(bool b) { showGR = b; repaint(); }
+    void enableCombinedCurve(bool b) { showCombined = b; repaint(); }
 
     // Set the two primary bands (left/right) coming from compressor params
     void setPrimaryBands(float xoverHz,
@@ -70,7 +79,7 @@ public:
         // Visual Q derived from knee
         bandL.q = kneeToQ(bandL.kneeDb);
         bandR.q = kneeToQ(bandR.kneeDb);
-        if (decorBands.empty()) initDecorBands();
+        // Do not auto-create decorative bands; start empty so user can add them explicitly.
         repaint();
     }
 
@@ -85,8 +94,12 @@ public:
     SelectedInfo getSelectedInfo() const
     {
         SelectedInfo si; si.index = selected;
-        if (selected==0) { si.freqHz=bandL.freqHz; si.thresholdDb=bandL.thresholdDb; si.ratio=bandL.ratio; si.kneeDb=bandL.kneeDb; }
-        else if (selected==1) { si.freqHz=bandR.freqHz; si.thresholdDb=bandR.thresholdDb; si.ratio=bandR.ratio; si.kneeDb=bandR.kneeDb; }
+        if (selected==0) { si.freqHz=bandL.freqHz; si.thresholdDb=bandL.thresholdDb; si.ratio=bandL.ratio; si.kneeDb=bandL.kneeDb; si.isPrimary=true; }
+        else if (selected==1) { si.freqHz=bandR.freqHz; si.thresholdDb=bandR.thresholdDb; si.ratio=bandR.ratio; si.kneeDb=bandR.kneeDb; si.isPrimary=true; }
+        else if (selected>=2 && (size_t)(selected-2) < decorBands.size()) {
+            const auto& b = decorBands[(size_t)(selected-2)];
+            si.freqHz=b.freqHz; si.thresholdDb=b.gainDb; si.ratio=b.ratio; si.kneeDb=b.kneeDb; si.isPrimary=false; si.type=CurveType::Bell;
+        }
         return si;
     }
     void setSelectedBandValue(BandParam what, float v)
@@ -98,7 +111,7 @@ public:
                 case BandParam::Freq: if (onChangeXover) onChangeXover(juce::jlimit(xMinHz, xMaxHz, v/0.65f)); bandL.freqHz=(float)v; break;
                 case BandParam::Threshold: bandL.thresholdDb=(float) v; if (onChangeThreshold) onChangeThreshold(0, bandL.thresholdDb); break;
                 case BandParam::Ratio: bandL.ratio=(float)v; if (onChangeRatio) onChangeRatio(0, bandL.ratio); break;
-                case BandParam::Knee: bandL.kneeDb=(float)v; if (onChangeKnee) onChangeKnee(0, bandL.kneeDb); break;
+                case BandParam::Knee: bandL.kneeDb=(float)v; if (onChangeKnee) onChangeKnee(0, bandL.kneeDb); bandL.q=kneeToQ(bandL.kneeDb); break;
                 case BandParam::Type: default: break; }
         }
         else if (selected==1)
@@ -107,7 +120,17 @@ public:
                 case BandParam::Freq: if (onChangeXover) onChangeXover(juce::jlimit(xMinHz, xMaxHz, v/1.45f)); bandR.freqHz=(float)v; break;
                 case BandParam::Threshold: bandR.thresholdDb=(float) v; if (onChangeThreshold) onChangeThreshold(1, bandR.thresholdDb); break;
                 case BandParam::Ratio: bandR.ratio=(float)v; if (onChangeRatio) onChangeRatio(1, bandR.ratio); break;
-                case BandParam::Knee: bandR.kneeDb=(float)v; if (onChangeKnee) onChangeKnee(1, bandR.kneeDb); break;
+                case BandParam::Knee: bandR.kneeDb=(float)v; if (onChangeKnee) onChangeKnee(1, bandR.kneeDb); bandR.q=kneeToQ(bandR.kneeDb); break;
+                case BandParam::Type: default: break; }
+        }
+        else if (selected>=2 && (size_t)(selected-2) < decorBands.size())
+        {
+            auto& b = decorBands[(size_t)(selected-2)];
+            switch (what){
+                case BandParam::Freq: b.freqHz = juce::jlimit(xMinHz, xMaxHz, (float)v); break;
+                case BandParam::Threshold: b.gainDb = juce::jlimit(-24.0f, 24.0f, (float)v); break;
+                case BandParam::Ratio: b.ratio = juce::jlimit(1.0f, 20.0f, (float)v); break;
+                case BandParam::Knee: b.kneeDb = juce::jlimit(0.0f, 24.0f, (float)v); b.q = kneeToQ(b.kneeDb); break;
                 case BandParam::Type: default: break; }
         }
         repaint();
@@ -121,7 +144,7 @@ public:
         drawBands(g, r);
         drawSpectrum(g, r);
         drawCrossovers(g, r);
-        drawGR(g, r);
+        if (showGR) drawGR(g, r);
         if (overlayEnabled) drawOverlay(g, r);
     }
 
@@ -130,16 +153,39 @@ public:
         if (!overlayEnabled) return;
         auto r = getLocalBounds().toFloat();
         const auto p = e.getPosition().toFloat();
-        const auto l = juce::Point<float>(xToPx(bandL.freqHz, r), yToPx(bandL.thresholdDb, r));
-        const auto rP= juce::Point<float>(xToPx(bandR.freqHz, r), yToPx(bandR.thresholdDb, r));
-        const float rad = style.nodeRadius + 4.0f;
-        int newSel = selected;
-        if (p.getDistanceFrom(l) <= rad) newSel = 0;
-        else if (p.getDistanceFrom(rP) <= rad) newSel = 1;
+        const float rad = style.nodeRadius + 6.0f;
+
+        // Check primary nodes (only if enabled)
+        int newSel = -1;
+        if (showPrimaries)
+        {
+            const auto l = juce::Point<float>(xToPx(bandL.freqHz, r), yToPx(bandL.thresholdDb, r));
+            const auto rp = juce::Point<float>(xToPx(bandR.freqHz, r), yToPx(bandR.thresholdDb, r));
+            if (p.getDistanceFrom(l) <= rad) newSel = 0;
+            else if (p.getDistanceFrom(rp) <= rad) newSel = 1;
+        }
+
+        // Check decorative band nodes
+        if (newSel < 0)
+        {
+            for (size_t i = 0; i < decorBands.size(); ++i)
+            {
+                const auto& b = decorBands[i];
+                const auto bp = juce::Point<float>(xToPx(b.freqHz, r), yToPx(b.gainDb, r));
+                if (p.getDistanceFrom(bp) <= rad)
+                {
+                    newSel = (int) i + 2; // offset after primaries
+                    break;
+                }
+            }
+        }
+
         selected = newSel;
         if (onSelectionChanged) onSelectionChanged(selected);
         dragStart = p;
-        startBand = (selected==0? bandL : bandR);
+        if (selected==0) startBand = bandL;
+        else if (selected==1) startBand = bandR;
+        else if (selected>=2 && (size_t)(selected-2) < decorBands.size()) startBand = decorBands[(size_t)(selected-2)];
     }
 
     void mouseDrag(const juce::MouseEvent& e) override
@@ -147,41 +193,65 @@ public:
         if (!overlayEnabled || selected < 0) return;
         auto r = getLocalBounds().toFloat();
         const auto p = e.getPosition().toFloat();
-        const auto dx = p.x - dragStart.x;
-        const auto dy = p.y - dragStart.y;
 
         // Convert current mouse pos to Hz / dB
         const float hzNow = pxToHz(p.x, r);
         const float dBNow = pxToDb(p.y, r);
 
-        // Horizontal drag -> crossover (both nodes)
-        const float scale = (selected==0 ? 1.0f/0.65f : 1.0f/1.45f);
-        float newXover = hzNow * scale;
-        newXover = juce::jlimit(xMinHz*1.1f, xMaxHz*0.9f, newXover);
-        if (onChangeXover) onChangeXover(newXover);
+        if ((selected == 0 || selected == 1) && showPrimaries)
+        {
+            // Primary nodes: horizontal drag moves crossover; vertical moves threshold; Alt adjusts ratio
+            const float scale = (selected==0 ? 1.0f/0.65f : 1.0f/1.45f);
+            float newXover = juce::jlimit(xMinHz*1.1f, xMaxHz*0.9f, hzNow * scale);
+            if (onChangeXover) onChangeXover(newXover);
 
-        // Vertical drag -> threshold OR ratio with Alt/Option
-        if (e.mods.isAltDown())
-        {
-            // map dB to ratio 1..20 (higher drag up -> larger ratio)
-            const float tNorm = juce::jlimit(0.0f, 1.0f, (yMaxDb - dBNow) / (yMaxDb - yMinDb));
-            float rVal = 1.0f + tNorm * 19.0f;
-            if (onChangeRatio) onChangeRatio(selected, rVal);
+            if (e.mods.isAltDown())
+            {
+                const float tNorm = juce::jlimit(0.0f, 1.0f, (yMaxDb - dBNow) / (yMaxDb - yMinDb));
+                float rVal = 1.0f + tNorm * 19.0f;
+                if (onChangeRatio) onChangeRatio(selected, rVal);
+            }
+            else
+            {
+                float th = juce::jlimit(yMinDb, yMaxDb, dBNow);
+                if (onChangeThreshold) onChangeThreshold(selected, th);
+            }
         }
-        else
+        else if (selected >= 2 && (size_t)(selected-2) < decorBands.size())
         {
-            float th = juce::jlimit(yMinDb, yMaxDb, dBNow);
-            if (onChangeThreshold) onChangeThreshold(selected, th);
+            // Decorative bands: drag directly controls freq and threshold
+            auto& b = decorBands[(size_t)(selected-2)];
+            b.freqHz = juce::jlimit(xMinHz, xMaxHz, hzNow);
+            // Vertical moves control boost/cut directly
+            b.gainDb = juce::jlimit(-24.0f, 24.0f, dBNow);
+            if (e.mods.isAltDown())
+            {
+                // Alt-drag vertically adjusts Q (faster with pixels)
+                const float deltaPix = dragStart.y - p.y;
+                b.q = juce::jlimit(0.01f, 64.0f, startBand.q + deltaPix * 0.01f);
+            }
+            repaint();
         }
     }
 
     void mouseWheelMove(const juce::MouseEvent& e, const juce::MouseWheelDetails& wheel) override
     {
         if (!overlayEnabled || selected < 0) return;
-        // Adjust knee (and visual Q) with scroll
-        float& knee = (selected==0? bandL.kneeDb : bandR.kneeDb);
-        knee = juce::jlimit(0.0f, 24.0f, knee + (float)wheel.deltaY * 6.0f);
-        if (onChangeKnee) onChangeKnee(selected, knee);
+        if (selected <= 1 && showPrimaries)
+        {
+            // Adjust knee (and visual Q) for primary bands
+            float& knee = (selected==0? bandL.kneeDb : bandR.kneeDb);
+            knee = juce::jlimit(0.0f, 24.0f, knee + (float)wheel.deltaY * 6.0f);
+            if (onChangeKnee) onChangeKnee(selected, knee);
+            if (selected==0) bandL.q = kneeToQ(bandL.kneeDb); else bandR.q = kneeToQ(bandR.kneeDb);
+        }
+        else if ((size_t)(selected-2) < decorBands.size())
+        {
+            // For decorative bands, wheel adjusts Q directly
+            auto& b = decorBands[(size_t)(selected-2)];
+            b.q = juce::jlimit(0.01f, 64.0f, b.q + (float)wheel.deltaY * 0.5f);
+        }
+        repaint();
     }
 
 private:
@@ -237,17 +307,48 @@ private:
     void drawSpectrum(juce::Graphics& g, juce::Rectangle<float> a)
     {
         if (spectrumDb.empty()) return;
+
+        // Higher-detail rendering: resample per pixel column with log-frequency mapping
+        const int N = juce::jmax(2, (int) a.getWidth());
         juce::Path p; bool started=false;
-        const int N = (int) spectrumDb.size();
-        for (int i=0;i<N;++i)
+        float prevYdB = 0.0f; bool havePrev=false;
+        const int S = (int) spectrumDb.size();
+
+        for (int i=0; i<N; ++i)
         {
-            const float frac = (float) i / (float) juce::jmax(1,N-1);
-            const float hz = spMinHz + frac * (spMaxHz - spMinHz);
-            const float x = xToPx(hz, a);
-            const float y = yToPx(spectrumDb[(size_t)i], a);
+            const float fracX = (float) i / (float) (N - 1);
+            // Map screen X -> log frequency within chart range
+            const float logHz = juce::jmap(fracX, 0.0f, 1.0f, std::log10(xMinHz), std::log10(xMaxHz));
+            const float hz = std::pow(10.0f, logHz);
+
+            // Map hz -> source spectrum fractional index (linear in hz across spMin..spMax)
+            const float pos = juce::jlimit(0.0f, 1.0f, (hz - spMinHz) / juce::jmax(1.0f, (spMaxHz - spMinHz)));
+            const float fidx = pos * (float) (S - 1);
+            const int i0 = (int) std::floor(fidx);
+            const int i1 = juce::jlimit(0, S-1, i0 + 1);
+            const float t = fidx - (float) i0;
+            const float ydBraw = (1.0f - t) * spectrumDb[(size_t) juce::jlimit(0,S-1,i0)] + t * spectrumDb[(size_t) i1];
+
+            // Light smoothing for nicer look
+            const float ydB = havePrev ? (0.85f * prevYdB + 0.15f * ydBraw) : ydBraw;
+            prevYdB = ydB; havePrev = true;
+
+            const float x = juce::jmap((float) i, 0.0f, (float) (N - 1), a.getX(), a.getRight());
+            const float y = yToPx(ydB, a);
+
             if (!started) { p.startNewSubPath(x,y); started=true; }
             else p.lineTo(x,y);
         }
+
+        // Fill under the spectrum to the bottom of the chart with light grey opacity
+        juce::Path fillPath = p;
+        fillPath.lineTo(a.getRight(), a.getBottom());
+        fillPath.lineTo(a.getX(), a.getBottom());
+        fillPath.closeSubPath();
+        g.setColour(style.spectrumFill);
+        g.fillPath(fillPath);
+
+        // Stroke the spectrum
         g.setColour(style.spectrum);
         g.strokePath(p, juce::PathStrokeType(style.specStroke));
     }
@@ -276,35 +377,43 @@ private:
 
     void mouseDoubleClick(const juce::MouseEvent& e) override
     {
-        BandUI b; b.freqHz = pxToHz((float)e.x, getLocalBounds().toFloat()); b.thresholdDb=-6.0f; b.q=1.0f;
+        BandUI b; b.freqHz = pxToHz((float)e.x, getLocalBounds().toFloat()); b.gainDb=0.0f; b.q=1.0f;
         decorBands.push_back(b);
+        selected = (int)decorBands.size() - 1 + 2; // select the new band
+        if (onSelectionChanged) onSelectionChanged(selected);
         repaint();
     }
 
     // ===== Overlay drawing =====
-    struct BandUI { float freqHz=200.0f; float thresholdDb=-18.0f; float ratio=2.0f; float kneeDb=6.0f; float q=1.0f; };
+    // For primaries: thresholdDb/ratio/kneeDb are compressor semantics.
+    // For decorative EQ-like bands: gainDb is used for boost/cut and thresholdDb is ignored.
+    struct BandUI { float freqHz=200.0f; float thresholdDb=-18.0f; float ratio=2.0f; float kneeDb=6.0f; float q=1.0f; float gainDb=0.0f; };
 
-    static float kneeToQ(float knee) { return juce::jlimit(0.2f, 8.0f, 6.0f / juce::jmax(1.0f, knee + 0.5f)); }
+    static float kneeToQ(float knee) { return juce::jlimit(0.01f, 64.0f, 6.0f / juce::jmax(1.0f, knee + 0.5f)); }
 
     float bellGain(float hz, const BandUI& b) const
     {
-        // Simple peaking curve purely for UI: gain proportional to threshold and width by Q
+        // Peaking curve purely for UI. 'gainDb' determines boost/cut (±24 dB by default).
         const float f0 = juce::jlimit(xMinHz, xMaxHz, b.freqHz);
         const float x = std::log(hz / f0 + 1.0e-12f);
-        const float width = 1.0f / juce::jmax(0.2f, b.q);
+        const float width = 1.0f / juce::jmax(0.01f, b.q); // allow much wider bells
         const float g = std::exp(-0.5f * (x/width) * (x/width));
-        // Map threshold (negative) to downward dip magnitude visually
-        const float mag = juce::jlimit(0.0f, 1.0f, (b.thresholdDb - yMinDb) / (yMaxDb - yMinDb));
-        return -mag * g * 12.0f; // up to -12 dB dip for look only
+        return b.gainDb * g;
     }
 
     void drawOverlay(juce::Graphics& g, juce::Rectangle<float> a)
     {
-        // Decorative bands
-        g.setColour(style.overlayDecor);
+        // Decorative bands (each with its own vibrant colour)
+        int idx = 0;
         for (auto& d : decorBands)
         {
-            juce::Path p; bool st=false; const int N=140;
+            const float hue = std::fmod(0.58f + 0.12f * (float) idx, 1.0f);
+            const auto col = juce::Colour::fromHSV(hue, 0.75f, 0.95f, 1.0f);
+            const bool isSel = (selected == idx + 2);
+
+            // Build curve path and optionally a fill to the 0 dB line
+            juce::Path p; bool st=false; const int N=160;
+            std::vector<juce::Point<float>> pts; pts.reserve(N);
             for (int i=0;i<N;++i)
             {
                 const float frac = (float)i/(N-1);
@@ -312,9 +421,50 @@ private:
                 const float yDb = bellGain(hz, d);
                 const float x = xToPx(hz,a);
                 const float y = yToPx(yDb, a);
-                if (!st) { p.startNewSubPath(x,y); st=true; } else p.lineTo(x,y);
+                auto pt = juce::Point<float>(x,y);
+                pts.push_back(pt);
+                if (!st) { p.startNewSubPath(pt); st=true; } else p.lineTo(pt);
             }
-            g.strokePath(p, juce::PathStrokeType(1.5f));
+
+            // Stroke with reduced opacity when not selected
+            g.setColour(col.withAlpha(isSel ? 0.95f : style.otherCurveAlpha));
+            g.strokePath(p, juce::PathStrokeType(2.0f));
+
+            // Translucent fill to 0 dB (middle) line for all bands
+            {
+                const float y0 = yToPx(0.0f, a);
+                juce::Path pf;
+                pf.startNewSubPath(pts.front());
+                for (size_t i=1;i<pts.size();++i) pf.lineTo(pts[i]);
+                pf.lineTo(pts.back().withY(y0));
+                pf.lineTo(pts.front().withY(y0));
+                pf.closeSubPath();
+                const float fillAlpha = isSel ? style.selectedFillAlpha : style.otherFillAlpha;
+                g.setColour(col.withAlpha(fillAlpha));
+                g.fillPath(pf);
+            }
+
+            // Node for decorative band (match curve colour)
+            const float rnode = style.nodeRadius * 0.95f;
+            auto centre = juce::Point<float>(xToPx(d.freqHz, a), yToPx(d.gainDb, a));
+            auto nodeBounds = juce::Rectangle<float>(2*rnode, 2*rnode).withCentre(centre);
+            if (isSel)
+            {
+                // Selected: white fill + white outer ring for clear focus
+                g.setColour(juce::Colours::white);
+                g.fillEllipse(nodeBounds);
+                g.setColour(juce::Colours::white.withAlpha(0.95f));
+                g.drawEllipse(nodeBounds.expanded(3.0f), 1.8f);
+            }
+            else
+            {
+                // Unselected: colored fill + subtle black outline
+                g.setColour(col.withAlpha(0.95f));
+                g.fillEllipse(nodeBounds);
+                g.setColour(juce::Colours::black.withAlpha(0.75f));
+                g.drawEllipse(nodeBounds, 1.0f);
+            }
+            ++idx;
         }
 
         // Primary left/right bands in bright colours
@@ -333,21 +483,56 @@ private:
             g.setColour(col.withAlpha(0.85f));
             g.strokePath(p, juce::PathStrokeType(2.0f));
         };
-        drawPrimary(bandL, style.overlayCurve);
-        drawPrimary(bandR, style.overlayCurve2);
-
-        // Nodes
-        const float r = style.nodeRadius;
-        auto paintNode = [&](const BandUI& b, juce::Colour c)
+        if (showPrimaries)
         {
-            auto centre = juce::Point<float>(xToPx(b.freqHz, a), yToPx(b.thresholdDb, a));
-            g.setColour(c);
-            g.fillEllipse(juce::Rectangle<float>(2*r, 2*r).withCentre(centre));
-            g.setColour(juce::Colours::black.withAlpha(0.8f));
-            g.drawEllipse(juce::Rectangle<float>(2*r, 2*r).withCentre(centre), 1.2f);
-        };
-        paintNode(bandL, style.nodeFill);
-        paintNode(bandR, style.nodeFill2);
+            // Dim unselected primary curve if any primary is selected
+            auto alphaL = (selected==0 ? 0.95f : style.otherCurveAlpha);
+            auto alphaR = (selected==1 ? 0.95f : style.otherCurveAlpha);
+            g.setColour(style.overlayCurve.withAlpha(alphaL));
+            drawPrimary(bandL, style.overlayCurve.withAlpha(alphaL));
+            g.setColour(style.overlayCurve2.withAlpha(alphaR));
+            drawPrimary(bandR, style.overlayCurve2.withAlpha(alphaR));
+
+            // Nodes
+            const float r = style.nodeRadius;
+            auto paintNode = [&](const BandUI& b, juce::Colour c)
+            {
+            auto centre = juce::Point<float>(xToPx(b.freqHz, a), yToPx(b.gainDb, a));
+                g.setColour(c);
+                g.fillEllipse(juce::Rectangle<float>(2*r, 2*r).withCentre(centre));
+                g.setColour(juce::Colours::black.withAlpha(0.8f));
+                g.drawEllipse(juce::Rectangle<float>(2*r, 2*r).withCentre(centre), 1.2f);
+            };
+            paintNode(bandL, style.nodeFill);
+            paintNode(bandR, style.nodeFill2);
+
+            // Selection highlight ring for primaries
+            const float rsel = style.nodeRadius + 2.5f;
+            g.setColour(juce::Colours::white.withAlpha(0.95f));
+            if (selected == 0)
+                g.drawEllipse(juce::Rectangle<float>(2*rsel, 2*rsel).withCentre({xToPx(bandL.freqHz,a), yToPx(bandL.thresholdDb,a)}), 1.6f);
+            else if (selected == 1)
+                g.drawEllipse(juce::Rectangle<float>(2*rsel, 2*rsel).withCentre({xToPx(bandR.freqHz,a), yToPx(bandR.thresholdDb,a)}), 1.6f);
+        }
+
+        // Combined response (media yellow): sum of decorative band gains in dB
+        if (showCombined)
+        {
+            juce::Path cp; bool stc=false; const int N=240;
+            for (int i=0;i<N;++i)
+            {
+                const float frac = (float)i/(N-1);
+                const float hz = std::pow(10.0f, juce::jmap(frac, 0.0f, 1.0f, std::log10(xMinHz), std::log10(xMaxHz)));
+                float yDb = 0.0f;
+                for (const auto& d : decorBands)
+                    yDb += bellGain(hz, d); // sum dB contributions for visualisation
+                const float x = xToPx(hz, a);
+                const float y = yToPx(juce::jlimit(yMinDb, yMaxDb, yDb), a);
+                if (!stc) { cp.startNewSubPath(x,y); stc=true; } else cp.lineTo(x,y);
+            }
+            g.setColour(style.combinedCurve.withAlpha(0.95f));
+            g.strokePath(cp, juce::PathStrokeType(style.combinedStroke));
+        }
     }
 
     void initDecorBands()
@@ -370,6 +555,9 @@ private:
 
     // Overlay state
     bool overlayEnabled { false };
+    bool showPrimaries { false }; // start with FabFilter-like empty state
+    bool showGR { false };
+    bool showCombined { true };
     float xover { 200.0f };
     BandUI bandL, bandR;
     std::vector<BandUI> decorBands;
