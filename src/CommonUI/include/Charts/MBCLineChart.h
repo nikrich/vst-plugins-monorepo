@@ -38,6 +38,8 @@ public:
         juce::Colour nodeFill{ juce::Colours::orange };
         juce::Colour nodeFill2{ juce::Colours::deeppink };
         juce::Colour combinedCurve{ 0xFFFFD45A }; // media yellow
+        juce::Colour dbMarker{ juce::Colours::white.withAlpha(0.35f) }; // marker for ±12 dB
+        juce::Colour anchorLine{ juce::Colours::white.withAlpha(0.25f) }; // hairlines for selected freq/nyquist
         float nodeRadius = 6.0f;
         float combinedStroke = 2.4f;
         float otherCurveAlpha = 0.45f; // opacity for non-selected decorative curves
@@ -328,6 +330,20 @@ private:
             g.setColour(zero ? style.combinedCurve.withAlpha(0.7f) : style.grid);
             g.drawLine(a.getX(), yToPx(y,a), a.getRight(), yToPx(y,a), zero ? 1.8f : (y==0.f?1.2f:0.6f));
         }
+
+        // Explicit ±12 dB markers (dashed)
+        auto drawDbMarker = [&](float dB){
+            if (dB < yMinDb || dB > yMaxDb) return;
+            const float y = yToPx(dB, a);
+            float dashes[] = { 6.0f, 6.0f };
+            g.setColour(style.dbMarker);
+            g.drawDashedLine({ a.getX(), y, a.getRight(), y }, dashes, 2, 1.4f);
+            g.setColour(juce::Colours::white.withAlpha(0.55f));
+            juce::String txt = (dB > 0 ? "+" : "") + juce::String(dB, 0) + " dB";
+            g.drawFittedText(txt, juce::Rectangle<int>((int)a.getX()+4, (int)y-10, 50, 18), juce::Justification::left, 1);
+        };
+        drawDbMarker(12.0f);
+        drawDbMarker(-12.0f);
     }
 
     void drawBands(juce::Graphics& g, juce::Rectangle<float> a)
@@ -360,6 +376,8 @@ private:
             // Map screen X -> log frequency within chart range
             const float logHz = juce::jmap(fracX, 0.0f, 1.0f, std::log10(xMinHz), std::log10(xMaxHz));
             const float hz = std::pow(10.0f, logHz);
+            if (hz < spMinHz) continue;
+            if (hz > spMaxHz) break;
 
             // Map hz -> source spectrum fractional index (linear in hz across spMin..spMax)
             const float pos = juce::jlimit(0.0f, 1.0f, (hz - spMinHz) / juce::jmax(1.0f, (spMaxHz - spMinHz)));
@@ -408,6 +426,8 @@ private:
                 const float fracX = (float) i / (float) (N - 1);
                 const float logHz = juce::jmap(fracX, 0.0f, 1.0f, std::log10(xMinHz), std::log10(xMaxHz));
                 const float hz = std::pow(10.0f, logHz);
+                if (hz < spMinHz) continue;
+                if (hz > spMaxHz) break;
                 const float pos = juce::jlimit(0.0f, 1.0f, (hz - spMinHz) / juce::jmax(1.0f, (spMaxHz - spMinHz)));
                 const float fidx = pos * (float) (S2 - 1);
                 const int i0 = (int) std::floor(fidx);
@@ -422,6 +442,17 @@ private:
             }
             g.setColour(style.spectrumPost.withAlpha(0.95f));
             g.strokePath(pp, juce::PathStrokeType(style.specStroke + 0.2f));
+        }
+
+        // Draw analyzer Nyquist anchor line at spMaxHz if it is inside x-range
+        if (spMaxHz > xMinHz && spMaxHz < xMaxHz)
+        {
+            const float xNyq = xToPx(spMaxHz, a);
+            g.setColour(style.anchorLine);
+            g.drawLine(xNyq, a.getY(), xNyq, a.getBottom(), 1.0f);
+            g.setColour(juce::Colours::white.withAlpha(0.55f));
+            auto nyqLabel = (spMaxHz >= 1000.0f ? juce::String(spMaxHz/1000.0f, 1) + "k" : juce::String((int)spMaxHz)) + " Hz";
+            g.drawFittedText(nyqLabel, juce::Rectangle<int>((int)xNyq-24, (int)a.getY()+4, 48, 16), juce::Justification::centred, 1);
         }
     }
 
@@ -577,17 +608,27 @@ private:
                 g.drawEllipse(juce::Rectangle<float>(2*r, 2*r).withCentre(centre), 1.2f);
             };
             paintNode(bandL, style.nodeFill);
-            paintNode(bandR, style.nodeFill2);
+        paintNode(bandR, style.nodeFill2);
 
-            // Selection highlight ring for primaries
-            const float rsel = style.nodeRadius + 2.5f;
-            g.setColour(juce::Colours::white.withAlpha(0.95f));
-            if (selected == 0)
-                g.drawEllipse(juce::Rectangle<float>(2*rsel, 2*rsel).withCentre({xToPx(bandL.freqHz,a), yToPx(bandL.thresholdDb,a)}), 1.6f);
-            else if (selected == 1)
-                g.drawEllipse(juce::Rectangle<float>(2*rsel, 2*rsel).withCentre({xToPx(bandR.freqHz,a), yToPx(bandR.thresholdDb,a)}), 1.6f);
+        // Selection highlight ring for primaries
+        const float rsel = style.nodeRadius + 2.5f;
+        g.setColour(juce::Colours::white.withAlpha(0.95f));
+        if (selected == 0)
+            g.drawEllipse(juce::Rectangle<float>(2*rsel, 2*rsel).withCentre({xToPx(bandL.freqHz,a), yToPx(bandL.thresholdDb,a)}), 1.6f);
+        else if (selected == 1)
+            g.drawEllipse(juce::Rectangle<float>(2*rsel, 2*rsel).withCentre({xToPx(bandR.freqHz,a), yToPx(bandR.thresholdDb,a)}), 1.6f);
         }
 
+        // Draw vertical anchor line at selected band (primary or decorative)
+        if (selected >= 0)
+        {
+            float xSel = 0.0f;
+            if (selected == 0) xSel = xToPx(bandL.freqHz, a);
+            else if (selected == 1) xSel = xToPx(bandR.freqHz, a);
+            else if ((size_t)(selected-2) < decorBands.size()) xSel = xToPx(decorBands[(size_t)(selected-2)].freqHz, a);
+            g.setColour(style.anchorLine);
+            g.drawLine(xSel, a.getY(), xSel, a.getBottom(), 1.0f);
+        }
         // Combined response (media yellow): sum of decorative band gains in dB
         if (showCombined)
         {

@@ -284,8 +284,9 @@ void HungryGhostMultibandCompressorAudioProcessorEditor::timerCallback()
     int readPost = proc.readAnalyzerPost(timeBuf.data(), N);
     if (readPost > 0) { computeMag(timeBuf.data(), readPost, specPost); }
 
-    if (readPre > 0) chart->setSpectrum(specPre, 0.0f, (float) (proc.getSampleRate() * 0.5));
-    if (readPost > 0) chart->setPostSpectrum(specPost, 0.0f, (float) (proc.getSampleRate() * 0.5));
+    const float effMaxHz = (float) (proc.getSampleRate() * 0.5 / juce::jmax(1, proc.getAnalyzerDecimate()));
+    if (readPre > 0) chart->setSpectrum(specPre, 20.0f, effMaxHz);
+    if (readPost > 0) chart->setPostSpectrum(specPost, 20.0f, effMaxHz);
 
     // Crossovers + GR overlay
     std::vector<float> fcs; fcs.push_back(proc.apvts.getRawParameterValue("xover.1.Hz")->load());

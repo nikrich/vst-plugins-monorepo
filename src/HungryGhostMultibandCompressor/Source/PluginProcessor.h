@@ -63,6 +63,7 @@ public:
     // Pull analyzer samples into dst (returns count)
     int readAnalyzerPre(float* dst, int maxSamples);
     int readAnalyzerPost(float* dst, int maxSamples);
+    int getAnalyzerDecimate() const { return analyzerDecimate; }
     float getBandGrDb(int index) const { if (index < 0 || index >= 6) return 0.0f; return grBandDb[index].load(); }
 
     // ====== M1 DSP graph state ======
