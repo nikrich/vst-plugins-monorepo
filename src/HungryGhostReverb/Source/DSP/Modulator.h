@@ -18,6 +18,7 @@ public:
 
     void setRateHz(float hz) { rateHz = hz; updateInc(); }
     void setDepthSamples(float samples) { depthSamples = samples; }
+    float getDepthSamples() const { return depthSamples; }
 
     void setPhase(float ph) { phase = wrap01(ph); }
     void randomisePhase() { std::uniform_real_distribution<float> d(0.0f, 1.0f); setPhase(d(rng)); }

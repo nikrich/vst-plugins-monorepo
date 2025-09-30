@@ -38,6 +38,16 @@ jobs:
           rm -rf src/HungryGhostReverb/build
           cmake -S src/HungryGhostReverb -B src/HungryGhostReverb/build -G Xcode
 
+      - name: Configure Saturation (Xcode)
+        run: |
+          rm -rf src/HungryGhostSaturation/build
+          cmake -S src/HungryGhostSaturation -B src/HungryGhostSaturation/build -G Xcode
+
+      - name: Configure Multiband Compressor (Xcode)
+        run: |
+          rm -rf src/HungryGhostMultibandCompressor/build
+          cmake -S src/HungryGhostMultibandCompressor -B src/HungryGhostMultibandCompressor/build -G Xcode
+
       - name: Build Limiter (Release)
         run: |
           cmake --build src/HungryGhostLimiter/build --config Release --target HungryGhostLimiter_VST3
@@ -45,6 +55,14 @@ jobs:
       - name: Build Reverb (Release)
         run: |
           cmake --build src/HungryGhostReverb/build --config Release --target HungryGhostReverb_VST3
+
+      - name: Build Saturation (Release)
+        run: |
+          cmake --build src/HungryGhostSaturation/build --config Release --target HungryGhostSaturation_VST3
+
+      - name: Build Multiband Compressor (Release)
+        run: |
+          cmake --build src/HungryGhostMultibandCompressor/build --config Release --target HungryGhostMultibandCompressor_VST3
 
       - name: Package Limiter VST3
         id: pkg_limiter
@@ -66,6 +84,26 @@ jobs:
           ditto -c -k --sequesterRsrc --keepParent "$VST3_PATH" "$OUT_ZIP"
           echo "zip=$OUT_ZIP" >> $GITHUB_OUTPUT
 
+      - name: Package Saturation VST3
+        id: pkg_saturation
+        run: |
+          set -euo pipefail
+          ART_DIR="src/HungryGhostSaturation/build/HungryGhostSaturation_artefacts/Release/VST3"
+          VST3_PATH=$(find "$ART_DIR" -type d -name "*.vst3" -print -quit)
+          OUT_ZIP="HungryGhostSaturation-vst3-macos-${GITHUB_REF_NAME}.zip"
+          ditto -c -k --sequesterRsrc --keepParent "$VST3_PATH" "$OUT_ZIP"
+          echo "zip=$OUT_ZIP" >> $GITHUB_OUTPUT
+
+      - name: Package Multiband Compressor VST3
+        id: pkg_mbc
+        run: |
+          set -euo pipefail
+          ART_DIR="src/HungryGhostMultibandCompressor/build/HungryGhostMultibandCompressor_artefacts/Release/VST3"
+          VST3_PATH=$(find "$ART_DIR" -type d -name "*.vst3" -print -quit)
+          OUT_ZIP="HungryGhostMultibandCompressor-vst3-macos-${GITHUB_REF_NAME}.zip"
+          ditto -c -k --sequesterRsrc --keepParent "$VST3_PATH" "$OUT_ZIP"
+          echo "zip=$OUT_ZIP" >> $GITHUB_OUTPUT
+
       - name: Create GitHub Release and upload assets
         uses: softprops/action-gh-release@v2
         with:
@@ -75,3 +113,5 @@ jobs:
           files: |
             ${{ steps.pkg_limiter.outputs.zip }}
             ${{ steps.pkg_reverb.outputs.zip }}
+            ${{ steps.pkg_saturation.outputs.zip }}
+            ${{ steps.pkg_mbc.outputs.zip }}
