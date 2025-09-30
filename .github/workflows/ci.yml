@@ -7,6 +7,7 @@ on:
       - src/HungryGhostLimiter/**
       - src/HungryGhostReverb/**
       - src/HungryGhostSaturation/**
+      - src/HungryGhostMultibandCompressor/**
       - src/CommonUI/**
       - vendor/JUCE/**
       - assets/**
@@ -17,6 +18,7 @@ on:
       - src/HungryGhostLimiter/**
       - src/HungryGhostReverb/**
       - src/HungryGhostSaturation/**
+      - src/HungryGhostMultibandCompressor/**
       - src/CommonUI/**
       - vendor/JUCE/**
       - assets/**
@@ -75,6 +77,29 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      
+      - name: Show Xcode info
+        run: |
+          xcodebuild -version
+          xcode-select -p
+
+      - name: Configure HungryGhostReverb (Xcode generator)
+        run: |
+          rm -rf src/HungryGhostReverb/build
+          cmake -S src/HungryGhostReverb -B src/HungryGhostReverb/build -G Xcode
+
+      - name: Build plugin (Release)
+        run: |
+          cmake --build src/HungryGhostReverb/build --config Release --target HungryGhostReverb_VST3
+
+      - name: Upload plugin artefacts (VST3 Bundle)
+        uses: actions/upload-artifact@v4
+        with:
+          name: HungryGhostReverb-vst3-macos
+          path: |
+            src/HungryGhostReverb/build/HungryGhostReverb_artefacts/Release/VST3/**/*.vst3
+            src/HungryGhostReverb/build/HungryGhostReverb_artefacts/Release/VST3/**/*.vst3/**
+
 
   build-saturation:
     name: Build HungryGhostSaturation (macOS)
@@ -105,24 +130,40 @@ jobs:
             src/HungryGhostSaturation/build/HungryGhostSaturation_artefacts/Release/VST3/**/*.vst3
             src/HungryGhostSaturation/build/HungryGhostSaturation_artefacts/Release/VST3/**/*.vst3/**
 
+  build-multiband-compressor:
+    name: Build & Test Multiband Compressor (macOS)
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Show Xcode info
         run: |
           xcodebuild -version
           xcode-select -p
 
-      - name: Configure HungryGhostReverb (Xcode generator)
+      - name: Configure HungryGhostMultibandCompressor (Xcode generator)
         run: |
-          rm -rf src/HungryGhostReverb/build
-          cmake -S src/HungryGhostReverb -B src/HungryGhostReverb/build -G Xcode
+          rm -rf src/HungryGhostMultibandCompressor/build
+          cmake -S src/HungryGhostMultibandCompressor -B src/HungryGhostMultibandCompressor/build -G Xcode
+
+      - name: Build tests (Debug)
+        run: |
+          cmake --build src/HungryGhostMultibandCompressor/build --config Debug --target HGMBCTests_DSP
+
+      - name: Run tests (MBC DSP)
+        run: |
+          ./src/HungryGhostMultibandCompressor/build/HGMBCTests_DSP_artefacts/Debug/HGMBCTests_DSP
 
       - name: Build plugin (Release)
         run: |
-          cmake --build src/HungryGhostReverb/build --config Release --target HungryGhostReverb_VST3
+          cmake --build src/HungryGhostMultibandCompressor/build --config Release --target HungryGhostMultibandCompressor_VST3
 
       - name: Upload plugin artefacts (VST3 Bundle)
         uses: actions/upload-artifact@v4
         with:
-          name: HungryGhostReverb-vst3-macos
+          name: HungryGhostMultibandCompressor-vst3-macos
           path: |
-            src/HungryGhostReverb/build/HungryGhostReverb_artefacts/Release/VST3/**/*.vst3
-            src/HungryGhostReverb/build/HungryGhostReverb_artefacts/Release/VST3/**/*.vst3/**
+            src/HungryGhostMultibandCompressor/build/HungryGhostMultibandCompressor_artefacts/Release/VST3/**/*.vst3
+            src/HungryGhostMultibandCompressor/build/HungryGhostMultibandCompressor_artefacts/Release/VST3/**/*.vst3/**
+
