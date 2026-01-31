@@ -149,6 +149,47 @@ JsonParser::StatusResponse JsonParser::parseStatusResponse(const juce::String& j
         }
     }
 
+    // Extract ETA if available
+    if (obj->hasProperty("eta"))
+        result.eta = obj->getProperty("eta").toString();
+
+    // Parse conversion_path_wav (WAV URLs) - this is a JSON string that needs secondary parsing
+    // Falls back to conversion_path (MP3 URLs) if WAV not available
+    juce::String conversionPathStr;
+    if (obj->hasProperty("conversion_path_wav")) {
+        conversionPathStr = obj->getProperty("conversion_path_wav").toString();
+    } else if (obj->hasProperty("conversion_path")) {
+        conversionPathStr = obj->getProperty("conversion_path").toString();
+    }
+
+    if (conversionPathStr.isNotEmpty()) {
+        auto conversionParsed = juce::JSON::parse(conversionPathStr);
+        if (auto* conversionObj = conversionParsed.getDynamicObject()) {
+            for (auto& prop : conversionObj->getProperties()) {
+                juce::String stemName = prop.name.toString();
+                juce::String stemUrl = prop.value.toString();
+                StemType stemType = parseStemType(stemName);
+
+                // Find existing stem or create new one
+                bool found = false;
+                for (auto& existingStem : result.stems) {
+                    if (existingStem.type == stemType) {
+                        existingStem.url = stemUrl;
+                        found = true;
+                        break;
+                    }
+                }
+
+                if (!found) {
+                    StemResult newStem;
+                    newStem.type = stemType;
+                    newStem.url = stemUrl;
+                    result.stems.push_back(newStem);
+                }
+            }
+        }
+    }
+
     result.success = true;
     return result;
 }
