@@ -3,8 +3,11 @@
 #include <memory>
 #include "PluginProcessor.h"
 #include "ui/Layout.h"
+#include "ui/StemTrackList.h"
+#include "ui/SettingsPanel.h"
 #include <Controls/LogoHeader.h>
 #include <Controls/TransportBar.h>
+#include <Controls/DropZone.h>
 #include <Styling/Theme.h>
 #include <BinaryData.h>
 
@@ -22,19 +25,41 @@ public:
 private:
     void timerCallback() override;
 
+    // Extraction workflow
+    void handleFilesDropped(const juce::StringArray& files);
+    void startExtraction(const juce::File& audioFile);
+    void onExtractionStatus(api::ExtractionStatus status, float progress);
+    void onExtractionComplete(const api::ExtractionResult& result);
+    void loadStemsIntoPlayer(const juce::StringArray& stemPaths);
+    void showSettingsPanel();
+
     MusicGPTExtractorAudioProcessor& proc;
 
-    // Header
+    // Header with settings button
     ui::controls::LogoHeader logoHeader;
+    juce::TextButton settingsButton;
 
     // Transport controls
     ui::controls::TransportBar transportBar;
 
-    // File drop zone / waveform display area
-    juce::Component waveformArea;
+    // Drop zone for file input (shown when no stems loaded)
+    ui::controls::DropZone dropZone;
 
-    // Stem controls (will be expanded later)
-    juce::Component stemControlsArea;
+    // Stem track list (shown after extraction)
+    StemTrack::StemTrackList stemTrackList;
+
+    // Settings panel (modal overlay)
+    std::unique_ptr<SettingsPanel> settingsPanel;
+
+    // State
+    juce::File currentAudioFile;
+    bool extractionInProgress = false;
+    api::ExtractionStatus extractionStatus = api::ExtractionStatus::Idle;
+    float extractionProgress = 0.0f;
+    juce::String statusMessage;
+
+    // Format manager for loading thumbnails
+    juce::AudioFormatManager formatManager;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MusicGPTExtractorAudioProcessorEditor)
 };
