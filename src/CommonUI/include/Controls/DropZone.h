@@ -5,7 +5,7 @@
 namespace ui { namespace controls {
 
 // DropZone: file drag-and-drop target with visual feedback, theme colours
-// Supports both OS file drags (FileDragAndDropTarget) and DAW drags (DragAndDropTarget)
+// Supports both OS file drags (FileDragAndDropTarget) and DAW/JUCE internal drags (DragAndDropTarget)
 class DropZone : public juce::Component,
                  public juce::FileDragAndDropTarget,
                  public juce::DragAndDropTarget {
@@ -51,22 +51,12 @@ public:
         g.drawText(label, r, juce::Justification::centred, true);
     }
 
-    // FileDragAndDropTarget
+    // =========================================================================
+    // FileDragAndDropTarget - handles OS file system drags
+    // =========================================================================
     bool isInterestedInFileDrag(const juce::StringArray& files) override
     {
-        if (onFilesInterested)
-            return onFilesInterested(files);
-
-        if (acceptedExtensions.isEmpty())
-            return true;
-
-        for (const auto& file : files)
-        {
-            juce::String ext = juce::File(file).getFileExtension().toLowerCase();
-            if (acceptedExtensions.contains(ext) || acceptedExtensions.contains(ext.substring(1)))
-                return true;
-        }
-        return false;
+        return checkFilesAccepted(files);
     }
 
     void fileDragEnter(const juce::StringArray&, int, int) override
@@ -89,13 +79,68 @@ public:
             onFilesDropped(files);
     }
 
-    // DragAndDropTarget - handles DAW drags (internal JUCE drag-and-drop)
+    // =========================================================================
+    // DragAndDropTarget - handles DAW/JUCE internal drags
+    // DAWs send audio as SourceDetails with description containing file paths
+    // or audio data references
+    // =========================================================================
     bool isInterestedInDragSource(const SourceDetails& details) override
     {
-        auto files = extractFilesFromDragSource(details);
-        if (files.isEmpty())
-            return false;
+        // Extract file paths from the drag description
+        juce::StringArray files = extractFilesFromDragSource(details);
+        if (!files.isEmpty())
+            return checkFilesAccepted(files);
 
+        // Accept if description looks like it could contain audio data
+        // (some DAWs send custom var types for audio regions)
+        if (details.description.isArray() || details.description.isObject())
+            return true;
+
+        // Accept string descriptions that look like file paths
+        if (details.description.isString())
+        {
+            juce::String desc = details.description.toString();
+            if (desc.containsChar('/') || desc.containsChar('\\') ||
+                desc.endsWithIgnoreCase(".wav") || desc.endsWithIgnoreCase(".aiff") ||
+                desc.endsWithIgnoreCase(".mp3") || desc.endsWithIgnoreCase(".flac"))
+                return true;
+        }
+
+        return false;
+    }
+
+    void itemDragEnter(const SourceDetails&) override
+    {
+        dragging = true;
+        repaint();
+    }
+
+    void itemDragMove(const SourceDetails&) override {}
+
+    void itemDragExit(const SourceDetails&) override
+    {
+        dragging = false;
+        repaint();
+    }
+
+    void itemDropped(const SourceDetails& details) override
+    {
+        dragging = false;
+        repaint();
+
+        juce::StringArray files = extractFilesFromDragSource(details);
+        if (!files.isEmpty() && onFilesDropped)
+            onFilesDropped(files);
+    }
+
+private:
+    bool dragging { false };
+    juce::String label { "Drop files here" };
+    juce::StringArray acceptedExtensions;
+
+    // Check if files match accepted extensions
+    bool checkFilesAccepted(const juce::StringArray& files)
+    {
         if (onFilesInterested)
             return onFilesInterested(files);
 
@@ -111,62 +156,77 @@ public:
         return false;
     }
 
-    void itemDragEnter(const SourceDetails&) override
-    {
-        dragging = true;
-        repaint();
-    }
-
-    void itemDragExit(const SourceDetails&) override
-    {
-        dragging = false;
-        repaint();
-    }
-
-    void itemDropped(const SourceDetails& details) override
-    {
-        dragging = false;
-        repaint();
-
-        auto files = extractFilesFromDragSource(details);
-        if (files.isNotEmpty() && onFilesDropped)
-            onFilesDropped(files);
-    }
-
-private:
     // Extract file paths from DAW drag source
-    // DAWs may send: String path, StringArray, Array of paths, or file:// URLs
+    // DAWs may send paths as: String, StringArray, Array of strings, or in var properties
     juce::StringArray extractFilesFromDragSource(const SourceDetails& details)
     {
         juce::StringArray files;
-        const auto& desc = details.description;
 
-        if (desc.isString())
+        // Case 1: Description is a single file path string
+        if (details.description.isString())
         {
-            juce::String path = desc.toString();
-            if (path.startsWith("file://"))
-                path = juce::URL(path).getLocalFile().getFullPathName();
-            if (juce::File(path).existsAsFile())
+            juce::String path = details.description.toString();
+            if (juce::File::isAbsolutePath(path) && juce::File(path).existsAsFile())
                 files.add(path);
+            return files;
         }
-        else if (desc.isArray())
+
+        // Case 2: Description is an array (could be file paths or audio data refs)
+        if (details.description.isArray())
         {
-            for (int i = 0; i < desc.size(); ++i)
+            const auto* arr = details.description.getArray();
+            if (arr != nullptr)
             {
-                juce::String path = desc[i].toString();
-                if (path.startsWith("file://"))
-                    path = juce::URL(path).getLocalFile().getFullPathName();
-                if (juce::File(path).existsAsFile())
-                    files.add(path);
+                for (const auto& item : *arr)
+                {
+                    if (item.isString())
+                    {
+                        juce::String path = item.toString();
+                        if (juce::File::isAbsolutePath(path) && juce::File(path).existsAsFile())
+                            files.add(path);
+                    }
+                }
+            }
+            return files;
+        }
+
+        // Case 3: Description is an object with file/path properties (common DAW format)
+        if (details.description.isObject())
+        {
+            // Try common property names used by DAWs
+            static const char* pathProps[] = { "file", "path", "filePath", "audioFile", "url", "uri" };
+            for (const char* prop : pathProps)
+            {
+                if (details.description.hasProperty(prop))
+                {
+                    juce::String path = details.description.getProperty(prop, {}).toString();
+                    if (juce::File::isAbsolutePath(path) && juce::File(path).existsAsFile())
+                        files.add(path);
+                }
+            }
+
+            // Check for "files" array property
+            if (details.description.hasProperty("files"))
+            {
+                auto filesVar = details.description.getProperty("files", {});
+                if (filesVar.isArray())
+                {
+                    const auto* arr = filesVar.getArray();
+                    if (arr != nullptr)
+                    {
+                        for (const auto& item : *arr)
+                        {
+                            juce::String path = item.toString();
+                            if (juce::File::isAbsolutePath(path) && juce::File(path).existsAsFile())
+                                files.add(path);
+                        }
+                    }
+                }
             }
         }
 
         return files;
     }
-
-    bool dragging { false };
-    juce::String label { "Drop files here" };
-    juce::StringArray acceptedExtensions;
 };
 
 } } // namespace ui::controls
