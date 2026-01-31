@@ -149,9 +149,13 @@ JsonParser::StatusResponse JsonParser::parseStatusResponse(const juce::String& j
         }
     }
 
-    // Extract ETA if available
+    // Extract ETA (estimated time remaining in seconds)
     if (obj->hasProperty("eta"))
-        result.eta = obj->getProperty("eta").toString();
+        result.eta = static_cast<int>(obj->getProperty("eta"));
+    else if (obj->hasProperty("eta_seconds"))
+        result.eta = static_cast<int>(obj->getProperty("eta_seconds"));
+    else if (obj->hasProperty("time_remaining"))
+        result.eta = static_cast<int>(obj->getProperty("time_remaining"));
 
     // Parse conversion_path_wav (WAV URLs) - this is a JSON string that needs secondary parsing
     // Falls back to conversion_path (MP3 URLs) if WAV not available

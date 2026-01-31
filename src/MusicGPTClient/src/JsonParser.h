@@ -18,11 +18,11 @@ public:
         juce::String jobId;
         JobStatus status = JobStatus::Pending;
         float progress = 0.0f;
+        int eta = 0;  // Estimated time remaining in seconds
         std::vector<StemResult> stems;
         bool success = false;
         juce::String errorMessage;
         ErrorType errorType = ErrorType::None;
-        juce::String eta;
     };
 
     static UploadResponse parseUploadResponse(const juce::String& json);
