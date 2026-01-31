@@ -31,8 +31,14 @@ MusicGPTExtractorAudioProcessorEditor::MusicGPTExtractorAudioProcessorEditor(Mus
     dropZone.onFilesDropped = [this](const juce::StringArray& files) {
         handleFilesDropped(files);
     };
-    dropZone.setInterceptsMouseClicks(true, true);
     addAndMakeVisible(dropZone);
+
+    // Stem selector for choosing which stems to extract
+    addAndMakeVisible(stemSelector);
+    stemSelector.setSelected(ui::controls::StemSelector::Stem::Vocals, true, juce::dontSendNotification);
+    stemSelector.setSelected(ui::controls::StemSelector::Stem::Drums, true, juce::dontSendNotification);
+    stemSelector.setSelected(ui::controls::StemSelector::Stem::Bass, true, juce::dontSendNotification);
+    stemSelector.setSelected(ui::controls::StemSelector::Stem::Instrumental, true, juce::dontSendNotification);
 
     // Stem track list (initially hidden)
     stemTrackList.setVisible(false);
@@ -49,6 +55,18 @@ MusicGPTExtractorAudioProcessorEditor::MusicGPTExtractorAudioProcessorEditor(Mus
         proc.setApiEndpoint(endpoint);
     };
     addChildComponent(settingsPanel);
+
+    // Credit confirmation dialog (modal overlay)
+    creditDialog.setVisible(false);
+    creditDialog.onAccept = [this]() {
+        if (pendingAudioFile.existsAsFile())
+            startExtraction(pendingAudioFile);
+        pendingAudioFile = juce::File();
+    };
+    creditDialog.onCancel = [this]() {
+        pendingAudioFile = juce::File();
+    };
+    addChildComponent(creditDialog);
 
     // Settings button
     settingsButton.setButtonText("Settings");
@@ -115,7 +133,7 @@ void MusicGPTExtractorAudioProcessorEditor::paint(juce::Graphics& g)
         g.setColour(th.accent1);
         g.fillRoundedRectangle(filledRect, 4.0f);
 
-        // Progress text
+        // Phase name (e.g., "Uploading...", "Processing...", "Downloading...")
         g.setColour(th.text);
         g.setFont(14.0f);
         auto textRect = progressRect.translated(0.0f, -30.0f).withHeight(24.0f);
@@ -126,6 +144,17 @@ void MusicGPTExtractorAudioProcessorEditor::paint(juce::Graphics& g)
         auto pctRect = progressRect.translated(0.0f, 20.0f).withHeight(20.0f);
         g.drawText(juce::String(static_cast<int>(extractionProgress * 100.0f)) + "%",
                    pctRect, juce::Justification::centred);
+
+        // ETA display (format as mm:ss)
+        if (extractionEta > 0)
+        {
+            int minutes = extractionEta / 60;
+            int seconds = extractionEta % 60;
+            juce::String etaText = "~" + juce::String(minutes) + ":"
+                                   + juce::String(seconds).paddedLeft('0', 2) + " remaining";
+            auto etaRect = pctRect.translated(0.0f, 18.0f).withHeight(20.0f);
+            g.drawText(etaText, etaRect, juce::Justification::centred);
+        }
     }
 }
 
@@ -147,12 +176,21 @@ void MusicGPTExtractorAudioProcessorEditor::resized()
 
     bounds.removeFromBottom(Layout::kRowGapPx);
 
+    // Stem selector between drop zone and transport
+    auto stemSelectorArea = bounds.removeFromBottom(Layout::kStemSelectorHeightPx);
+    stemSelector.setBounds(stemSelectorArea);
+
+    bounds.removeFromBottom(Layout::kRowGapPx);
+
     // Main content area (drop zone or stem list)
     dropZone.setBounds(bounds);
     stemTrackList.setBounds(bounds);
 
     // Settings panel covers entire editor
     settingsPanel.setBounds(getLocalBounds());
+
+    // Credit dialog covers entire editor
+    creditDialog.setBounds(getLocalBounds());
 }
 
 void MusicGPTExtractorAudioProcessorEditor::timerCallback()
@@ -197,8 +235,23 @@ void MusicGPTExtractorAudioProcessorEditor::handleFilesDropped(const juce::Strin
         return;
     }
 
+    // Store file for pending extraction
+    pendingAudioFile = audioFile;
     currentAudioFile = audioFile;
-    startExtraction(audioFile);
+
+    // Set up dialog with stem summary and estimated credits
+    // Default stems for extraction
+    juce::StringArray defaultStems { "Vocals", "Drums", "Bass", "Other" };
+    creditDialog.setStems(defaultStems);
+
+    // Estimate credits based on file (placeholder: 1 credit per MB, minimum 1)
+    float fileSizeMB = static_cast<float>(audioFile.getSize()) / (1024.0f * 1024.0f);
+    float estimatedCredits = std::max(1.0f, std::ceil(fileSizeMB));
+    creditDialog.setCredits(estimatedCredits);
+
+    // Show the confirmation dialog
+    creditDialog.setVisible(true);
+    creditDialog.toFront(true);
 }
 
 void MusicGPTExtractorAudioProcessorEditor::startExtraction(const juce::File& audioFile)
@@ -206,6 +259,7 @@ void MusicGPTExtractorAudioProcessorEditor::startExtraction(const juce::File& au
     currentState = State::Extracting;
     progressMessage = "Uploading...";
     extractionProgress = 0.0f;
+    extractionEta = 0;
     updateUIState();
 
     proc.startExtraction(
@@ -226,17 +280,18 @@ void MusicGPTExtractorAudioProcessorEditor::startExtraction(const juce::File& au
 void MusicGPTExtractorAudioProcessorEditor::onExtractionProgress(const musicgpt::ProgressInfo& info)
 {
     extractionProgress = info.progress;
+    extractionEta = info.eta;
 
     switch (info.phase)
     {
         case musicgpt::ProgressInfo::Phase::Uploading:
-            progressMessage = "Uploading audio...";
+            progressMessage = "Uploading...";
             break;
         case musicgpt::ProgressInfo::Phase::Processing:
-            progressMessage = "Extracting stems...";
+            progressMessage = "Processing...";
             break;
         case musicgpt::ProgressInfo::Phase::Downloading:
-            progressMessage = "Downloading stems...";
+            progressMessage = "Downloading...";
             break;
     }
 
@@ -255,6 +310,11 @@ void MusicGPTExtractorAudioProcessorEditor::onExtractionComplete(const musicgpt:
 
         // Load stems into the UI for visualization
         loadStemsIntoUI(result.stems);
+
+        // Update transport bar with total duration
+        double duration = proc.getTotalDuration();
+        transportBar.setTotalDuration(duration);
+        transportBar.setPosition(0.0);
 
         currentState = State::Ready;
     }
@@ -328,6 +388,28 @@ void MusicGPTExtractorAudioProcessorEditor::updateUIState()
         settingsPanel.setInterceptsMouseClicks(false, false);
 
     repaint();
+}
+
+musicgpt::StemType MusicGPTExtractorAudioProcessorEditor::buildStemTypeMask() const
+{
+    using Stem = ui::controls::StemSelector::Stem;
+    int mask = 0;
+
+    if (stemSelector.isSelected(Stem::Vocals))
+        mask |= static_cast<int>(musicgpt::StemType::Vocals);
+    if (stemSelector.isSelected(Stem::Drums))
+        mask |= static_cast<int>(musicgpt::StemType::Drums);
+    if (stemSelector.isSelected(Stem::Bass))
+        mask |= static_cast<int>(musicgpt::StemType::Bass);
+    if (stemSelector.isSelected(Stem::Instrumental))
+        mask |= static_cast<int>(musicgpt::StemType::Instrumental);
+
+    // Map "Other" from StemSelector if there's a suitable enum
+    // For now, if none are selected, default to All
+    if (mask == 0)
+        return musicgpt::StemType::All;
+
+    return static_cast<musicgpt::StemType>(mask);
 }
 
 //=====================================================================

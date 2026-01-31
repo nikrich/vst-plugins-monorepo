@@ -5,9 +5,11 @@
 #include "ui/Layout.h"
 #include "ui/StemTrackList.h"
 #include "ui/SettingsPanel.h"
+#include "ui/CreditConfirmDialog.h"
 #include <Controls/LogoHeader.h>
 #include <Controls/TransportBar.h>
 #include <Controls/DropZone.h>
+#include <Controls/StemSelector.h>
 #include <Styling/Theme.h>
 #include <BinaryData.h>
 
@@ -37,6 +39,7 @@ private:
     void loadStemsIntoUI(const std::vector<musicgpt::StemResult>& stems);
     void showSettings();
     void updateUIState();
+    musicgpt::StemType buildStemTypeMask() const;
 
     MusicGPTExtractorAudioProcessor& proc;
 
@@ -46,6 +49,7 @@ private:
     juce::File currentAudioFile;
     juce::String progressMessage;
     float extractionProgress { 0.0f };
+    int extractionEta { 0 };  // Estimated time remaining in seconds
 
     // Header
     ui::controls::LogoHeader logoHeader;
@@ -56,11 +60,18 @@ private:
     // File drop zone (shown when idle)
     ui::controls::DropZone dropZone;
 
+    // Stem selector for choosing which stems to extract
+    ui::controls::StemSelector stemSelector;
+
     // Stem track list (shown when stems are loaded)
     StemTrack::StemTrackList stemTrackList;
 
     // Settings panel (modal)
     SettingsPanel settingsPanel;
+
+    // Credit confirmation dialog (modal)
+    CreditConfirmDialog creditDialog;
+    juce::File pendingAudioFile;
 
     // Settings button
     juce::TextButton settingsButton;
