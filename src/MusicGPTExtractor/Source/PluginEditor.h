@@ -14,6 +14,7 @@
 class MusicGPTExtractorAudioProcessorEditor
     : public juce::AudioProcessorEditor
     , public juce::DragAndDropContainer
+    , public juce::FileDragAndDropTarget
     , private juce::Timer
 {
 public:
@@ -22,6 +23,10 @@ public:
 
     void paint(juce::Graphics& g) override;
     void resized() override;
+
+    // FileDragAndDropTarget - fallback for OS file drags directly on editor
+    bool isInterestedInFileDrag(const juce::StringArray& files) override;
+    void filesDropped(const juce::StringArray& files, int x, int y) override;
 
 private:
     void timerCallback() override;
