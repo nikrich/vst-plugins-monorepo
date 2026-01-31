@@ -22,6 +22,9 @@ inline constexpr int kWaveformMinHeightPx     = 200;
 inline constexpr int kStemControlsWidthPx     = 180;
 inline constexpr int kStemRowHeightPx         = 50;
 
+// Stem selector
+inline constexpr int kStemSelectorHeightPx    = 120;
+
 // Transport bar
 inline constexpr int kTransportHeightPx       = 50;
 

@@ -33,6 +33,13 @@ MusicGPTExtractorAudioProcessorEditor::MusicGPTExtractorAudioProcessorEditor(Mus
     };
     addAndMakeVisible(dropZone);
 
+    // Stem selector for choosing which stems to extract
+    addAndMakeVisible(stemSelector);
+    stemSelector.setSelected(ui::controls::StemSelector::Stem::Vocals, true, juce::dontSendNotification);
+    stemSelector.setSelected(ui::controls::StemSelector::Stem::Drums, true, juce::dontSendNotification);
+    stemSelector.setSelected(ui::controls::StemSelector::Stem::Bass, true, juce::dontSendNotification);
+    stemSelector.setSelected(ui::controls::StemSelector::Stem::Instrumental, true, juce::dontSendNotification);
+
     // Stem track list (initially hidden)
     stemTrackList.setVisible(false);
     addAndMakeVisible(stemTrackList);
@@ -141,6 +148,12 @@ void MusicGPTExtractorAudioProcessorEditor::resized()
     // Transport bar at bottom
     auto transport = bounds.removeFromBottom(ui::controls::TransportBar::kHeight);
     transportBar.setBounds(transport);
+
+    bounds.removeFromBottom(Layout::kRowGapPx);
+
+    // Stem selector between drop zone and transport
+    auto stemSelectorArea = bounds.removeFromBottom(Layout::kStemSelectorHeightPx);
+    stemSelector.setBounds(stemSelectorArea);
 
     bounds.removeFromBottom(Layout::kRowGapPx);
 
@@ -319,4 +332,26 @@ void MusicGPTExtractorAudioProcessorEditor::updateUIState()
     }
 
     repaint();
+}
+
+musicgpt::StemType MusicGPTExtractorAudioProcessorEditor::buildStemTypeMask() const
+{
+    using Stem = ui::controls::StemSelector::Stem;
+    int mask = 0;
+
+    if (stemSelector.isSelected(Stem::Vocals))
+        mask |= static_cast<int>(musicgpt::StemType::Vocals);
+    if (stemSelector.isSelected(Stem::Drums))
+        mask |= static_cast<int>(musicgpt::StemType::Drums);
+    if (stemSelector.isSelected(Stem::Bass))
+        mask |= static_cast<int>(musicgpt::StemType::Bass);
+    if (stemSelector.isSelected(Stem::Instrumental))
+        mask |= static_cast<int>(musicgpt::StemType::Instrumental);
+
+    // Map "Other" from StemSelector if there's a suitable enum
+    // For now, if none are selected, default to All
+    if (mask == 0)
+        return musicgpt::StemType::All;
+
+    return static_cast<musicgpt::StemType>(mask);
 }
