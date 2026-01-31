@@ -13,6 +13,7 @@
 #include "ui/columns/OutputColumn.h"
 #include <Controls/LogoHeader.h>
 #include "ui/AdvancedPanel.h"
+#include "ui/SettingsPanel.h"
 #include <BinaryData.h>
 #include <Styling/Theme.h>
 class HungryGhostLimiterAudioProcessorEditor
@@ -49,6 +50,10 @@ private:
 
     // Cached UI background image (kit-03 background-03)
     juce::Image      bgCardImage;
+
+    // Settings overlay
+    SettingsPanel    settingsPanel;
+    juce::TextButton settingsButton;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(HungryGhostLimiterAudioProcessorEditor)
 };
