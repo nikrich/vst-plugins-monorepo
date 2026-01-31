@@ -185,7 +185,7 @@ private:
         formFields.push_back({"stems", stemTypeToString(job->requestedStems)});
 
         auto uploadResponse = httpClient_.postMultipart(
-            "/extract",
+            "/Extraction",
             job->audioFile,
             "audio",
             formFields,
@@ -226,7 +226,7 @@ private:
         while (!job->cancelled.load() && !threadShouldExit()) {
             Thread::sleep(config_.pollIntervalMs);
 
-            auto statusResponse = httpClient_.get("/jobs/" + job->remoteJobId);
+            auto statusResponse = httpClient_.get("/byId?conversionType=EXTRACTION&task_id=" + job->remoteJobId);
 
             if (job->cancelled.load()) break;
 

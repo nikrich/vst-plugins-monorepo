@@ -26,7 +26,9 @@ JsonParser::UploadResponse JsonParser::parseUploadResponse(const juce::String& j
     }
 
     // Extract job ID
-    if (obj->hasProperty("job_id")) {
+    if (obj->hasProperty("task_id")) {
+        result.jobId = obj->getProperty("task_id").toString();
+    } else if (obj->hasProperty("job_id")) {
         result.jobId = obj->getProperty("job_id").toString();
     } else if (obj->hasProperty("jobId")) {
         result.jobId = obj->getProperty("jobId").toString();
@@ -70,7 +72,9 @@ JsonParser::StatusResponse JsonParser::parseStatusResponse(const juce::String& j
     }
 
     // Extract job ID
-    if (obj->hasProperty("job_id"))
+    if (obj->hasProperty("task_id"))
+        result.jobId = obj->getProperty("task_id").toString();
+    else if (obj->hasProperty("job_id"))
         result.jobId = obj->getProperty("job_id").toString();
     else if (obj->hasProperty("jobId"))
         result.jobId = obj->getProperty("jobId").toString();
@@ -161,7 +165,7 @@ ErrorType JsonParser::classifyError(int httpStatus, const juce::String& response
 JobStatus JsonParser::parseJobStatus(const juce::String& statusStr) {
     juce::String lower = statusStr.toLowerCase();
 
-    if (lower == "pending" || lower == "queued" || lower == "waiting")
+    if (lower == "pending" || lower == "queued" || lower == "waiting" || lower == "in_queue")
         return JobStatus::Pending;
     if (lower == "processing" || lower == "running" || lower == "in_progress")
         return JobStatus::Processing;
