@@ -7,6 +7,15 @@ MusicGPTExtractorAudioProcessor::MusicGPTExtractorAudioProcessor()
     : AudioProcessor(BusesProperties()
         .withOutput("Output", juce::AudioChannelSet::stereo(), true))
 {
+    // Set default output directory for extracted stems
+    extractionConfig.outputDirectory = juce::File::getSpecialLocation(
+        juce::File::userMusicDirectory).getChildFile("MusicGPT Stems");
+}
+
+MusicGPTExtractorAudioProcessor::~MusicGPTExtractorAudioProcessor()
+{
+    if (extractionClient)
+        extractionClient->cancelAll();
 }
 
 //=====================================================================
@@ -21,7 +30,13 @@ bool MusicGPTExtractorAudioProcessor::isBusesLayoutSupported(const BusesLayout& 
 void MusicGPTExtractorAudioProcessor::prepareToPlay(double sampleRate, int samplesPerBlockExpected)
 {
     sampleRateHz = sampleRate;
-    stemPlayer.prepare(sampleRate, samplesPerBlockExpected);
+    blockSizeExpected = samplesPerBlockExpected;
+    stemPlayer.prepareToPlay(samplesPerBlockExpected, sampleRate);
+}
+
+void MusicGPTExtractorAudioProcessor::releaseResources()
+{
+    stemPlayer.releaseResources();
 }
 
 //=====================================================================
@@ -35,8 +50,8 @@ void MusicGPTExtractorAudioProcessor::processBlock(juce::AudioBuffer<float>& buf
 
     if (playing.load())
     {
-        stemPlayer.processBlock(buffer);
-        playbackPosition.store(stemPlayer.getPosition());
+        juce::AudioSourceChannelInfo info(buffer);
+        stemPlayer.getNextAudioBlock(info);
     }
 }
 
@@ -44,8 +59,7 @@ void MusicGPTExtractorAudioProcessor::processBlock(juce::AudioBuffer<float>& buf
 
 void MusicGPTExtractorAudioProcessor::setPlaybackPosition(double pos)
 {
-    playbackPosition.store(pos);
-    stemPlayer.setPosition(pos);
+    stemPlayer.setPositionNormalized(pos);
 }
 
 //=====================================================================
@@ -57,7 +71,7 @@ void MusicGPTExtractorAudioProcessor::getStateInformation(juce::MemoryBlock& des
     state->setAttribute("version", 1);
 
     // Save playback position
-    state->setAttribute("playbackPosition", playbackPosition.load());
+    state->setAttribute("playbackPosition", getPlaybackPosition());
 
     // Save loaded stem paths
     auto* stemsElement = state->createNewChildElement("Stems");
@@ -72,11 +86,14 @@ void MusicGPTExtractorAudioProcessor::getStateInformation(juce::MemoryBlock& des
     int numStems = stemPlayer.getNumStems();
     for (int i = 0; i < numStems; ++i)
     {
-        auto* stemSetting = settingsElement->createNewChildElement("Setting");
-        stemSetting->setAttribute("index", i);
-        stemSetting->setAttribute("gain", static_cast<double>(stemPlayer.getStemGain(i)));
-        stemSetting->setAttribute("muted", stemPlayer.isStemMuted(i));
-        stemSetting->setAttribute("solo", stemPlayer.isStemSolo(i));
+        if (auto* stem = stemPlayer.getStem(i))
+        {
+            auto* stemSetting = settingsElement->createNewChildElement("Setting");
+            stemSetting->setAttribute("index", i);
+            stemSetting->setAttribute("gain", static_cast<double>(stem->getGain()));
+            stemSetting->setAttribute("muted", stem->isMuted());
+            stemSetting->setAttribute("solo", stem->isSolo());
+        }
     }
 
     // Copy to memory block
@@ -122,7 +139,8 @@ void MusicGPTExtractorAudioProcessor::setStateInformation(const void* data, int 
     if (!validPaths.isEmpty())
     {
         loadedStemPaths = validPaths;
-        stemPlayer.loadStems(validPaths);
+        for (const auto& path : validPaths)
+            stemPlayer.loadStem(juce::File(path));
 
         // Restore per-stem settings
         if (auto* settingsElement = state->getChildByName("StemSettings"))
@@ -134,13 +152,16 @@ void MusicGPTExtractorAudioProcessor::setStateInformation(const void* data, int 
                     int index = stemSetting->getIntAttribute("index", -1);
                     if (index >= 0 && index < stemPlayer.getNumStems())
                     {
-                        float gain = static_cast<float>(stemSetting->getDoubleAttribute("gain", 1.0));
-                        bool muted = stemSetting->getBoolAttribute("muted", false);
-                        bool solo = stemSetting->getBoolAttribute("solo", false);
+                        if (auto* stem = stemPlayer.getStem(index))
+                        {
+                            float gain = static_cast<float>(stemSetting->getDoubleAttribute("gain", 1.0));
+                            bool muted = stemSetting->getBoolAttribute("muted", false);
+                            bool solo = stemSetting->getBoolAttribute("solo", false);
 
-                        stemPlayer.setStemGain(index, gain);
-                        stemPlayer.setStemMuted(index, muted);
-                        stemPlayer.setStemSolo(index, solo);
+                            stem->setGain(gain);
+                            stem->setMuted(muted);
+                            stem->setSolo(solo);
+                        }
                     }
                 }
             }
@@ -149,6 +170,100 @@ void MusicGPTExtractorAudioProcessor::setStateInformation(const void* data, int 
         // Restore playback position
         setPlaybackPosition(savedPosition);
     }
+}
+
+//=====================================================================
+
+void MusicGPTExtractorAudioProcessor::setApiKey(const juce::String& key)
+{
+    extractionConfig.apiKey = key;
+    // Recreate client with new config on next extraction
+    extractionClient.reset();
+}
+
+void MusicGPTExtractorAudioProcessor::setApiEndpoint(const juce::String& endpoint)
+{
+    extractionConfig.apiEndpoint = endpoint;
+    extractionClient.reset();
+}
+
+//=====================================================================
+
+void MusicGPTExtractorAudioProcessor::ensureExtractionClient()
+{
+    if (!extractionClient)
+    {
+        // Ensure output directory exists
+        extractionConfig.outputDirectory.createDirectory();
+        extractionClient = std::make_unique<musicgpt::ExtractionClient>(extractionConfig);
+    }
+}
+
+void MusicGPTExtractorAudioProcessor::startExtraction(
+    const juce::File& audioFile,
+    ExtractionProgressCallback onProgress,
+    ExtractionCompleteCallback onComplete)
+{
+    ensureExtractionClient();
+
+    // Extract all standard stems
+    currentJobId = extractionClient->extractStems(
+        audioFile,
+        musicgpt::StemType::All,
+        std::move(onProgress),
+        std::move(onComplete)
+    );
+}
+
+void MusicGPTExtractorAudioProcessor::cancelExtraction()
+{
+    if (extractionClient && currentJobId.isNotEmpty())
+    {
+        extractionClient->cancelJob(currentJobId);
+        currentJobId.clear();
+    }
+}
+
+bool MusicGPTExtractorAudioProcessor::isExtracting() const
+{
+    return extractionClient && extractionClient->isBusy();
+}
+
+//=====================================================================
+
+void MusicGPTExtractorAudioProcessor::loadExtractedStems(
+    const std::vector<musicgpt::StemResult>& stems)
+{
+    stemPlayer.clearStems();
+    loadedStemPaths.clear();
+
+    for (const auto& stem : stems)
+    {
+        if (stem.file.existsAsFile())
+        {
+            stemPlayer.loadStem(stem.file);
+            loadedStemPaths.add(stem.file.getFullPathName());
+        }
+    }
+}
+
+void MusicGPTExtractorAudioProcessor::setPlaying(bool shouldPlay)
+{
+    playing.store(shouldPlay);
+    if (shouldPlay)
+        stemPlayer.play();
+    else
+        stemPlayer.pause();
+}
+
+double MusicGPTExtractorAudioProcessor::getPlaybackPosition() const
+{
+    return stemPlayer.getPositionNormalized();
+}
+
+double MusicGPTExtractorAudioProcessor::getTotalDuration() const
+{
+    return stemPlayer.getLengthInSeconds();
 }
 
 //=====================================================================

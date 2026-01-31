@@ -10,56 +10,64 @@ MusicGPTExtractorAudioProcessorEditor::MusicGPTExtractorAudioProcessorEditor(Mus
     setOpaque(true);
     setSize(Layout::kWindowWidth, Layout::kWindowHeight);
 
-    // Register audio formats for thumbnail loading
     formatManager.registerBasicFormats();
 
-    // Header and settings button
+    // Logo header
     addAndMakeVisible(logoHeader);
-
-    settingsButton.setButtonText("Settings");
-    settingsButton.setColour(juce::TextButton::buttonColourId, Style::theme().panel);
-    settingsButton.setColour(juce::TextButton::textColourOnId, Style::theme().text);
-    settingsButton.setColour(juce::TextButton::textColourOffId, Style::theme().text);
-    settingsButton.onClick = [this]() { showSettingsPanel(); };
-    addAndMakeVisible(settingsButton);
 
     // Transport bar
     addAndMakeVisible(transportBar);
+    transportBar.onPlayPauseChanged = [this](bool isPlaying) {
+        proc.setPlaying(isPlaying);
+    };
+    transportBar.onSeekChanged = [this](double position) {
+        proc.getStemPlayer().setPositionNormalized(position);
+    };
 
     // Drop zone for file input
-    dropZone.setLabel("Drop audio file to extract stems");
-    dropZone.setAcceptedExtensions({ "wav", "mp3", "flac", "aiff", "aif", "ogg", "m4a" });
+    dropZone.setLabel("Drop audio file here to extract stems");
+    dropZone.setAcceptedExtensions({ ".wav", ".mp3", ".aiff", ".flac", ".ogg", ".m4a" });
     dropZone.onFilesDropped = [this](const juce::StringArray& files) {
         handleFilesDropped(files);
     };
     addAndMakeVisible(dropZone);
 
-    // Stem track list (hidden initially)
+    // Stem track list (initially hidden)
     stemTrackList.setVisible(false);
     addAndMakeVisible(stemTrackList);
 
-    // Connect transport callbacks
-    transportBar.onPlayPauseChanged = [this](bool isPlaying) {
-        proc.setPlaying(isPlaying);
+    // Settings panel (modal overlay)
+    settingsPanel.setVisible(false);
+    settingsPanel.onSettingsSaved = [this]() {
+        juce::String apiKey = SettingsPanel::loadStoredApiKey();
+        juce::String endpoint = SettingsPanel::loadStoredEndpoint();
+        proc.setApiKey(apiKey);
+        proc.setApiEndpoint(endpoint);
     };
+    addChildComponent(settingsPanel);
 
-    transportBar.onSeekChanged = [this](double position) {
-        proc.getStemPlayer().setPosition(position);
-        stemTrackList.setPlayheadPosition(position);
-    };
+    // Settings button
+    settingsButton.setButtonText("Settings");
+    settingsButton.setColour(juce::TextButton::buttonColourId, Style::theme().panel);
+    settingsButton.setColour(juce::TextButton::textColourOnId, Style::theme().text);
+    settingsButton.setColour(juce::TextButton::textColourOffId, Style::theme().text);
+    settingsButton.onClick = [this]() { showSettings(); };
+    addAndMakeVisible(settingsButton);
 
-    // Load API settings into extraction client
-    juce::String apiKey = SettingsPanel::loadStoredApiKey();
-    juce::String endpoint = SettingsPanel::loadStoredEndpoint();
-    proc.getExtractionClient().setApiKey(apiKey);
-    proc.getExtractionClient().setEndpoint(endpoint);
+    // Load stored API key into processor
+    juce::String storedKey = SettingsPanel::loadStoredApiKey();
+    juce::String storedEndpoint = SettingsPanel::loadStoredEndpoint();
+    if (storedKey.isNotEmpty())
+        proc.setApiKey(storedKey);
+    if (storedEndpoint.isNotEmpty())
+        proc.setApiEndpoint(storedEndpoint);
 
     // Restore stems from processor state (if any were saved)
     const auto& savedPaths = proc.getLoadedStemPaths();
     if (!savedPaths.isEmpty() && proc.getStemPlayer().getNumStems() > 0)
     {
-        // Stems were already loaded by setStateInformation, just update UI
-        double duration = proc.getStemPlayer().getTotalDuration();
+        currentState = State::Ready;
+        double duration = proc.getTotalDuration();
         transportBar.setTotalDuration(duration);
         transportBar.setPosition(proc.getPlaybackPosition());
 
@@ -69,6 +77,7 @@ MusicGPTExtractorAudioProcessorEditor::MusicGPTExtractorAudioProcessorEditor(Mus
             if (stemFile.existsAsFile())
                 stemTrackList.addStem(stemFile.getFileNameWithoutExtension(), stemFile, formatManager);
         }
+        updateUIState();
     }
 
     startTimerHz(30);
@@ -84,59 +93,35 @@ void MusicGPTExtractorAudioProcessorEditor::paint(juce::Graphics& g)
     auto& th = Style::theme();
     g.fillAll(th.bg);
 
-    // If extraction is in progress, show status over the drop zone area
-    if (extractionInProgress)
+    // Show progress overlay during extraction
+    if (currentState == State::Extracting)
     {
-        auto statusBounds = dropZone.getBounds().toFloat();
+        auto contentArea = dropZone.getBounds().toFloat();
         g.setColour(th.panel);
-        g.fillRoundedRectangle(statusBounds, th.borderRadius);
+        g.fillRoundedRectangle(contentArea, th.borderRadius);
 
-        // Progress bar background
-        auto progressBounds = statusBounds.reduced(40.0f, 0.0f);
-        progressBounds = progressBounds.withHeight(8.0f).withCentre(statusBounds.getCentre());
-        g.setColour(th.trackTop.withAlpha(0.3f));
-        g.fillRoundedRectangle(progressBounds, 4.0f);
+        // Progress bar
+        auto progressRect = contentArea.reduced(40.0f, 0.0f)
+                                       .withHeight(8.0f)
+                                       .withCentre(contentArea.getCentre());
+        g.setColour(th.trackBot);
+        g.fillRoundedRectangle(progressRect, 4.0f);
 
-        // Progress bar fill
-        auto fillBounds = progressBounds;
-        fillBounds.setWidth(progressBounds.getWidth() * extractionProgress);
+        auto filledRect = progressRect.withWidth(progressRect.getWidth() * extractionProgress);
         g.setColour(th.accent1);
-        g.fillRoundedRectangle(fillBounds, 4.0f);
+        g.fillRoundedRectangle(filledRect, 4.0f);
 
-        // Status text
+        // Progress text
         g.setColour(th.text);
         g.setFont(14.0f);
+        auto textRect = progressRect.translated(0.0f, -30.0f).withHeight(24.0f);
+        g.drawText(progressMessage, textRect, juce::Justification::centred);
 
-        juce::String statusText;
-        switch (extractionStatus)
-        {
-            case api::ExtractionStatus::Uploading:
-                statusText = "Uploading audio file...";
-                break;
-            case api::ExtractionStatus::Processing:
-                statusText = "Processing stems...";
-                break;
-            case api::ExtractionStatus::Downloading:
-                statusText = "Downloading stems...";
-                break;
-            default:
-                statusText = statusMessage.isEmpty() ? "Processing..." : statusMessage;
-                break;
-        }
-
-        auto textBounds = statusBounds;
-        textBounds.setY(progressBounds.getBottom() + 20.0f);
-        textBounds.setHeight(30.0f);
-        g.drawText(statusText, textBounds.toNearestInt(), juce::Justification::centred);
-
-        // Progress percentage
+        // Percentage
         g.setColour(th.textMuted);
-        g.setFont(12.0f);
-        auto percentBounds = statusBounds;
-        percentBounds.setY(progressBounds.getY() - 25.0f);
-        percentBounds.setHeight(20.0f);
+        auto pctRect = progressRect.translated(0.0f, 20.0f).withHeight(20.0f);
         g.drawText(juce::String(static_cast<int>(extractionProgress * 100.0f)) + "%",
-                   percentBounds.toNearestInt(), juce::Justification::centred);
+                   pctRect, juce::Justification::centred);
     }
 }
 
@@ -146,9 +131,9 @@ void MusicGPTExtractorAudioProcessorEditor::resized()
 
     // Header with settings button
     auto header = bounds.removeFromTop(Layout::kHeaderHeightPx);
-    auto settingsArea = header.removeFromRight(80);
+    auto settingsBtnArea = header.removeFromRight(80);
+    settingsButton.setBounds(settingsBtnArea.withSizeKeepingCentre(70, 28));
     logoHeader.setBounds(header);
-    settingsButton.setBounds(settingsArea.reduced(0, 15));
 
     bounds.removeFromTop(Layout::kRowGapPx);
 
@@ -158,29 +143,18 @@ void MusicGPTExtractorAudioProcessorEditor::resized()
 
     bounds.removeFromBottom(Layout::kRowGapPx);
 
-    // Main content area - either drop zone or stem track list
-    if (stemTrackList.getNumStems() > 0)
-    {
-        dropZone.setVisible(false);
-        stemTrackList.setVisible(true);
-        stemTrackList.setBounds(bounds);
-    }
-    else
-    {
-        stemTrackList.setVisible(false);
-        dropZone.setVisible(!extractionInProgress);
-        dropZone.setBounds(bounds);
-    }
+    // Main content area (drop zone or stem list)
+    dropZone.setBounds(bounds);
+    stemTrackList.setBounds(bounds);
 
-    // Settings panel overlay (full size)
-    if (settingsPanel != nullptr)
-        settingsPanel->setBounds(getLocalBounds());
+    // Settings panel covers entire editor
+    settingsPanel.setBounds(getLocalBounds());
 }
 
 void MusicGPTExtractorAudioProcessorEditor::timerCallback()
 {
     // Update transport position from processor
-    double totalDuration = proc.getStemPlayer().getTotalDuration();
+    double totalDuration = proc.getTotalDuration();
     if (totalDuration > 0.0)
     {
         transportBar.setTotalDuration(totalDuration);
@@ -192,25 +166,15 @@ void MusicGPTExtractorAudioProcessorEditor::timerCallback()
     // Sync play button state
     transportBar.setPlaying(proc.isPlaying());
 
-    // Update stem track list playback state
-    if (proc.isPlaying())
+    // Update stem track list playhead
+    if (currentState == State::Ready && proc.isPlaying())
     {
-        stemTrackList.setPlaying(true,
-                                  proc.getPlaybackPosition() * totalDuration,
-                                  totalDuration);
-    }
-    else
-    {
-        stemTrackList.setPlaying(false);
+        stemTrackList.setPlayheadPosition(proc.getPlaybackPosition());
     }
 
-    // Check extraction progress
-    if (extractionInProgress)
-    {
-        extractionProgress = proc.getExtractionClient().getProgress();
-        extractionStatus = proc.getExtractionClient().getStatus();
+    // Repaint progress during extraction
+    if (currentState == State::Extracting)
         repaint();
-    }
 }
 
 void MusicGPTExtractorAudioProcessorEditor::handleFilesDropped(const juce::StringArray& files)
@@ -218,133 +182,140 @@ void MusicGPTExtractorAudioProcessorEditor::handleFilesDropped(const juce::Strin
     if (files.isEmpty())
         return;
 
-    // Take the first audio file
     juce::File audioFile(files[0]);
     if (!audioFile.existsAsFile())
         return;
 
     // Check if API key is configured
-    if (!SettingsPanel::checkApiKeyConfigured())
+    if (proc.getApiKey().isEmpty())
     {
-        showSettingsPanel();
+        showSettings();
         return;
     }
 
+    currentAudioFile = audioFile;
     startExtraction(audioFile);
 }
 
 void MusicGPTExtractorAudioProcessorEditor::startExtraction(const juce::File& audioFile)
 {
-    currentAudioFile = audioFile;
-    extractionInProgress = true;
+    currentState = State::Extracting;
+    progressMessage = "Uploading...";
     extractionProgress = 0.0f;
-    extractionStatus = api::ExtractionStatus::Uploading;
-    statusMessage.clear();
+    updateUIState();
 
-    // Clear any existing stems
-    stemTrackList.clearStems();
-    proc.getStemPlayer().clearStems();
-
-    // Update visibility
-    dropZone.setVisible(false);
-    resized();
-    repaint();
-
-    // Start extraction
-    proc.getExtractionClient().extractStems(
+    proc.startExtraction(
         audioFile,
-        [this](api::ExtractionStatus status, float progress) {
-            onExtractionStatus(status, progress);
+        [this](const musicgpt::ProgressInfo& info) {
+            juce::MessageManager::callAsync([this, info]() {
+                onExtractionProgress(info);
+            });
         },
-        [this](const api::ExtractionResult& result) {
-            onExtractionComplete(result);
+        [this](const musicgpt::ExtractionResult& result) {
+            juce::MessageManager::callAsync([this, result]() {
+                onExtractionComplete(result);
+            });
         }
     );
 }
 
-void MusicGPTExtractorAudioProcessorEditor::onExtractionStatus(api::ExtractionStatus status, float progress)
+void MusicGPTExtractorAudioProcessorEditor::onExtractionProgress(const musicgpt::ProgressInfo& info)
 {
-    extractionStatus = status;
-    extractionProgress = progress;
+    extractionProgress = info.progress;
 
-    // Update on message thread
-    juce::MessageManager::callAsync([this]() {
-        repaint();
-    });
+    switch (info.phase)
+    {
+        case musicgpt::ProgressInfo::Phase::Uploading:
+            progressMessage = "Uploading audio...";
+            break;
+        case musicgpt::ProgressInfo::Phase::Processing:
+            progressMessage = "Extracting stems...";
+            break;
+        case musicgpt::ProgressInfo::Phase::Downloading:
+            progressMessage = "Downloading stems...";
+            break;
+    }
+
+    if (info.message.isNotEmpty())
+        progressMessage = info.message;
+
+    repaint();
 }
 
-void MusicGPTExtractorAudioProcessorEditor::onExtractionComplete(const api::ExtractionResult& result)
+void MusicGPTExtractorAudioProcessorEditor::onExtractionComplete(const musicgpt::ExtractionResult& result)
 {
-    extractionInProgress = false;
-
-    if (result.success)
+    if (result.status == musicgpt::JobStatus::Succeeded && !result.stems.empty())
     {
-        loadStemsIntoPlayer(result.stemPaths);
+        // Load stems into the processor for playback
+        proc.loadExtractedStems(result.stems);
+
+        // Load stems into the UI for visualization
+        loadStemsIntoUI(result.stems);
+
+        currentState = State::Ready;
     }
     else
     {
         // Show error
-        statusMessage = result.errorMessage;
-        extractionStatus = api::ExtractionStatus::Error;
-
-        juce::MessageManager::callAsync([this, errorMsg = result.errorMessage]() {
-            juce::AlertWindow::showMessageBoxAsync(
-                juce::MessageBoxIconType::WarningIcon,
-                "Extraction Failed",
-                errorMsg,
-                "OK"
-            );
-            dropZone.setVisible(true);
-            resized();
-            repaint();
-        });
+        currentState = State::Idle;
+        progressMessage = result.errorMessage.isNotEmpty()
+                         ? result.errorMessage
+                         : "Extraction failed";
     }
+
+    updateUIState();
 }
 
-void MusicGPTExtractorAudioProcessorEditor::loadStemsIntoPlayer(const juce::StringArray& stemPaths)
+void MusicGPTExtractorAudioProcessorEditor::loadStemsIntoUI(const std::vector<musicgpt::StemResult>& stems)
 {
-    // Load stems into the audio player
-    if (proc.getStemPlayer().loadStems(stemPaths))
+    stemTrackList.clearStems();
+
+    for (const auto& stem : stems)
     {
-        // Save paths for state persistence
-        proc.setLoadedStemPaths(stemPaths);
+        if (!stem.file.existsAsFile())
+            continue;
 
-        // Update transport with total duration
-        double duration = proc.getStemPlayer().getTotalDuration();
-        transportBar.setTotalDuration(duration);
-        transportBar.setPosition(0.0);
-
-        // Add stems to the visual track list
-        stemTrackList.clearStems();
-        for (const auto& path : stemPaths)
+        // Determine stem name from type
+        juce::String name;
+        switch (stem.type)
         {
-            juce::File stemFile(path);
-            stemTrackList.addStem(stemFile.getFileNameWithoutExtension(), stemFile, formatManager);
+            case musicgpt::StemType::Vocals:       name = "Vocals"; break;
+            case musicgpt::StemType::Drums:        name = "Drums"; break;
+            case musicgpt::StemType::Bass:         name = "Bass"; break;
+            case musicgpt::StemType::Other:        name = "Other"; break;
+            case musicgpt::StemType::Instrumental: name = "Instrumental"; break;
+            default:                               name = stem.file.getFileNameWithoutExtension(); break;
         }
 
-        // Update layout
-        juce::MessageManager::callAsync([this]() {
-            resized();
-            repaint();
-        });
+        stemTrackList.addStem(name, stem.file, formatManager);
     }
 }
 
-void MusicGPTExtractorAudioProcessorEditor::showSettingsPanel()
+void MusicGPTExtractorAudioProcessorEditor::showSettings()
 {
-    if (settingsPanel == nullptr)
+    // Pre-populate with current API key if available
+    if (proc.getApiKey().isNotEmpty())
+        settingsPanel.setApiKey(proc.getApiKey());
+
+    settingsPanel.setVisible(true);
+    settingsPanel.toFront(true);
+}
+
+void MusicGPTExtractorAudioProcessorEditor::updateUIState()
+{
+    switch (currentState)
     {
-        settingsPanel = std::make_unique<SettingsPanel>();
-        settingsPanel->onSettingsSaved = [this]() {
-            // Update extraction client with new settings
-            juce::String apiKey = SettingsPanel::loadStoredApiKey();
-            juce::String endpoint = SettingsPanel::loadStoredEndpoint();
-            proc.getExtractionClient().setApiKey(apiKey);
-            proc.getExtractionClient().setEndpoint(endpoint);
-        };
-        addAndMakeVisible(*settingsPanel);
-        resized();
+        case State::Idle:
+        case State::Extracting:
+            dropZone.setVisible(true);
+            stemTrackList.setVisible(false);
+            break;
+
+        case State::Ready:
+            dropZone.setVisible(false);
+            stemTrackList.setVisible(true);
+            break;
     }
 
-    settingsPanel->setVisible(true);
+    repaint();
 }
