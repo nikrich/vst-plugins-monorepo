@@ -106,7 +106,7 @@ HttpResponse CurlHttpClient::postMultipart(
     const juce::File& file,
     const juce::String& fieldName,
     const std::vector<std::pair<juce::String, juce::String>>& formFields,
-    ProgressCallback progressCallback
+    HttpProgressCallback progressCallback
 ) {
     HttpResponse response;
     cancelled_.store(false);
@@ -232,7 +232,7 @@ HttpResponse CurlHttpClient::get(const juce::String& endpoint) {
 bool CurlHttpClient::downloadFile(
     const juce::String& url,
     const juce::File& destination,
-    ProgressCallback progressCallback
+    HttpProgressCallback progressCallback
 ) {
     cancelled_.store(false);
 

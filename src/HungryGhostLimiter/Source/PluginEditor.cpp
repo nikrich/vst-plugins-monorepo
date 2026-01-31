@@ -62,6 +62,18 @@ HungryGhostLimiterAudioProcessorEditor::HungryGhostLimiterAudioProcessorEditor(H
         });
     }
 
+    // Settings button (top-right corner)
+    settingsButton.setButtonText("...");
+    settingsButton.setColour(juce::TextButton::buttonColourId, juce::Colours::transparentBlack);
+    settingsButton.setColour(juce::TextButton::textColourOnId, juce::Colours::white.withAlpha(0.6f));
+    settingsButton.setColour(juce::TextButton::textColourOffId, juce::Colours::white.withAlpha(0.6f));
+    settingsButton.onClick = [this]() { settingsPanel.setVisible(true); };
+    addAndMakeVisible(settingsButton);
+
+    // Settings panel overlay (hidden by default)
+    settingsPanel.setVisible(false);
+    addChildComponent(settingsPanel);
+
     startTimerHz(30);
 }
 
@@ -129,6 +141,12 @@ void HungryGhostLimiterAudioProcessorEditor::resized()
     // --- Header ---
     auto header = bounds.removeFromTop(Layout::kHeaderHeightPx);
     logoHeader.setBounds(header);
+
+    // Settings button (top-right corner of header)
+    settingsButton.setBounds(header.getRight() - 32, header.getY() + 4, 28, 28);
+
+    // Settings panel overlay (covers entire editor)
+    settingsPanel.setBounds(getLocalBounds());
 
     // --- Footer (Advanced Controls) ---
     // auto footer = bounds.removeFromBottom(Layout::kFooterHeightPx);
