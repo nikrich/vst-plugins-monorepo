@@ -23,7 +23,6 @@ public:
         bool success = false;
         juce::String errorMessage;
         ErrorType errorType = ErrorType::None;
-        juce::String eta;
     };
 
     static UploadResponse parseUploadResponse(const juce::String& json);

@@ -157,10 +157,6 @@ JsonParser::StatusResponse JsonParser::parseStatusResponse(const juce::String& j
         }
     }
 
-    // Extract ETA if available
-    if (obj->hasProperty("eta"))
-        result.eta = obj->getProperty("eta").toString();
-
     // Parse conversion_path_wav (WAV URLs) - this is a JSON string that needs secondary parsing
     // Falls back to conversion_path (MP3 URLs) if WAV not available
     juce::String conversionPathStr;
