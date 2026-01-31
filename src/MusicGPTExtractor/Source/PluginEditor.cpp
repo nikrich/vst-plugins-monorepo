@@ -31,7 +31,6 @@ MusicGPTExtractorAudioProcessorEditor::MusicGPTExtractorAudioProcessorEditor(Mus
     dropZone.onFilesDropped = [this](const juce::StringArray& files) {
         handleFilesDropped(files);
     };
-    dropZone.setInterceptsMouseClicks(true, true);
     addAndMakeVisible(dropZone);
 
     // Stem selector for choosing which stems to extract
@@ -311,6 +310,11 @@ void MusicGPTExtractorAudioProcessorEditor::onExtractionComplete(const musicgpt:
 
         // Load stems into the UI for visualization
         loadStemsIntoUI(result.stems);
+
+        // Update transport bar with total duration
+        double duration = proc.getTotalDuration();
+        transportBar.setTotalDuration(duration);
+        transportBar.setPosition(0.0);
 
         currentState = State::Ready;
     }
