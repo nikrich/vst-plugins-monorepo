@@ -7,6 +7,7 @@ class SettingsPanel : public juce::Component
 {
 public:
     std::function<void()> onSettingsSaved;
+    std::function<void()> onClosed;
 
     SettingsPanel()
     {
@@ -67,7 +68,12 @@ public:
         closeButton.setColour(juce::TextButton::buttonColourId, juce::Colours::transparentBlack);
         closeButton.setColour(juce::TextButton::textColourOnId, juce::Colours::white.withAlpha(0.7f));
         closeButton.setColour(juce::TextButton::textColourOffId, juce::Colours::white.withAlpha(0.7f));
-        closeButton.onClick = [this]() { setVisible(false); };
+        closeButton.onClick = [this]() {
+            setVisible(false);
+            setInterceptsMouseClicks(false, false);  // Critical: don't block drag-drop when hidden
+            if (onClosed)
+                onClosed();
+        };
         addAndMakeVisible(closeButton);
 
         loadSettings();
@@ -212,6 +218,7 @@ private:
             props->setValue("endpoint", getEndpoint());
             props->saveIfNeeded();
             setVisible(false);
+            setInterceptsMouseClicks(false, false);  // Critical: don't block drag-drop when hidden
             if (onSettingsSaved)
                 onSettingsSaved();
         }
