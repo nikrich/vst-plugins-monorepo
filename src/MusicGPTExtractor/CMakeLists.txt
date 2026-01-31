@@ -11,8 +11,10 @@ set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64" CACHE STRING "")
 
 # Pull in vendored JUCE
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../../vendor/JUCE ${CMAKE_CURRENT_BINARY_DIR}/JUCE)
-# Pull in shared CommonUI library
+# Pull in shared libraries
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../CommonUI ${CMAKE_CURRENT_BINARY_DIR}/CommonUI)
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../CommonAudio ${CMAKE_CURRENT_BINARY_DIR}/CommonAudio)
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../MusicGPTClient ${CMAKE_CURRENT_BINARY_DIR}/MusicGPTClient)
 
 # Find libcurl for API communication
 find_package(CURL REQUIRED)
@@ -53,12 +55,13 @@ juce_generate_juce_header(MusicGPTExtractor)
 # Avoid VST2/VST3 automation replacement conflicts when building only VST3
 target_compile_definitions(MusicGPTExtractor PRIVATE JUCE_VST3_CAN_REPLACE_VST2=0)
 
-# Link JUCE modules + binary data + libcurl
+# Link JUCE modules + binary data + libraries
 target_link_libraries(MusicGPTExtractor
     PRIVATE
         MGEBinaryData
         CommonUI
-        CURL::libcurl
+        CommonAudio
+        MusicGPTClient
         juce::juce_audio_utils
         juce::juce_audio_processors
         juce::juce_gui_extra

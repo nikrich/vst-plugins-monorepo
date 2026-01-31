@@ -8,8 +8,10 @@
 #include <JuceHeader.h>
 #include <atomic>
 #include <memory>
-#include "api/ExtractionClient.h"
-#include "audio/StemPlayer.h"
+#include <ExtractionClient.h>
+#include <ExtractionConfig.h>
+#include <ExtractionJob.h>
+#include <audio/StemPlayer.h>
 
 //==============================================================================
 
@@ -17,11 +19,11 @@ class MusicGPTExtractorAudioProcessor : public juce::AudioProcessor
 {
 public:
     MusicGPTExtractorAudioProcessor();
-    ~MusicGPTExtractorAudioProcessor() override = default;
+    ~MusicGPTExtractorAudioProcessor() override;
 
     //==============================================================================
     void prepareToPlay(double sampleRate, int samplesPerBlockExpected) override;
-    void releaseResources() override {}
+    void releaseResources() override;
     bool isBusesLayoutSupported(const BusesLayout& layouts) const override;
     void processBlock(juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
 
@@ -47,25 +49,48 @@ public:
     void setStateInformation(const void* data, int sizeInBytes) override;
 
     //==============================================================================
-    // Extraction API client
-    api::ExtractionClient& getExtractionClient() { return extractionClient; }
+    // API Configuration
+    void setApiKey(const juce::String& key);
+    void setApiEndpoint(const juce::String& endpoint);
+    juce::String getApiKey() const { return extractionConfig.apiKey; }
 
+    //==============================================================================
+    // Extraction workflow
+    using ExtractionProgressCallback = std::function<void(const musicgpt::ProgressInfo&)>;
+    using ExtractionCompleteCallback = std::function<void(const musicgpt::ExtractionResult&)>;
+
+    void startExtraction(const juce::File& audioFile,
+                         ExtractionProgressCallback onProgress,
+                         ExtractionCompleteCallback onComplete);
+    void cancelExtraction();
+    bool isExtracting() const;
+
+    //==============================================================================
     // Stem player for audio playback
     audio::StemPlayer& getStemPlayer() { return stemPlayer; }
 
+    // Load stems from extraction result
+    void loadExtractedStems(const std::vector<musicgpt::StemResult>& stems);
+
     // Transport state
     bool isPlaying() const { return playing.load(); }
-    void setPlaying(bool shouldPlay) { playing.store(shouldPlay); }
-    double getPlaybackPosition() const { return playbackPosition.load(); }
+    void setPlaying(bool shouldPlay);
+    double getPlaybackPosition() const;
+    double getTotalDuration() const;
 
 private:
-    double sampleRateHz = 44100.0;
+    void ensureExtractionClient();
 
-    api::ExtractionClient extractionClient;
+    double sampleRateHz = 44100.0;
+    int blockSizeExpected = 512;
+
+    musicgpt::ExtractionConfig extractionConfig;
+    std::unique_ptr<musicgpt::ExtractionClient> extractionClient;
+    juce::String currentJobId;
+
     audio::StemPlayer stemPlayer;
 
     std::atomic<bool> playing { false };
-    std::atomic<double> playbackPosition { 0.0 };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MusicGPTExtractorAudioProcessor)
 };
