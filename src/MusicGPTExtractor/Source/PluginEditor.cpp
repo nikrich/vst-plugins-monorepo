@@ -27,6 +27,7 @@ MusicGPTExtractorAudioProcessorEditor::MusicGPTExtractorAudioProcessorEditor(Mus
     // Drop zone for file input
     dropZone.setLabel("Drop audio file here to extract stems");
     dropZone.setAcceptedExtensions({ ".wav", ".mp3", ".aiff", ".flac", ".ogg", ".m4a" });
+    dropZone.setInterceptsMouseClicks(true, true);
     dropZone.onFilesDropped = [this](const juce::StringArray& files) {
         handleFilesDropped(files);
     };
