@@ -13,6 +13,7 @@
 
 class MusicGPTExtractorAudioProcessorEditor
     : public juce::AudioProcessorEditor
+    , public juce::DragAndDropContainer
     , private juce::Timer
 {
 public:
