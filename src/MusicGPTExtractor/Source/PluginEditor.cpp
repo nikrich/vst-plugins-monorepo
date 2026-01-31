@@ -47,6 +47,18 @@ MusicGPTExtractorAudioProcessorEditor::MusicGPTExtractorAudioProcessorEditor(Mus
     };
     addChildComponent(settingsPanel);
 
+    // Credit confirmation dialog (modal overlay)
+    creditDialog.setVisible(false);
+    creditDialog.onAccept = [this]() {
+        if (pendingAudioFile.existsAsFile())
+            startExtraction(pendingAudioFile);
+        pendingAudioFile = juce::File();
+    };
+    creditDialog.onCancel = [this]() {
+        pendingAudioFile = juce::File();
+    };
+    addChildComponent(creditDialog);
+
     // Settings button
     settingsButton.setButtonText("Settings");
     settingsButton.setColour(juce::TextButton::buttonColourId, Style::theme().panel);
@@ -150,6 +162,9 @@ void MusicGPTExtractorAudioProcessorEditor::resized()
 
     // Settings panel covers entire editor
     settingsPanel.setBounds(getLocalBounds());
+
+    // Credit dialog covers entire editor
+    creditDialog.setBounds(getLocalBounds());
 }
 
 void MusicGPTExtractorAudioProcessorEditor::timerCallback()
@@ -194,8 +209,23 @@ void MusicGPTExtractorAudioProcessorEditor::handleFilesDropped(const juce::Strin
         return;
     }
 
+    // Store file for pending extraction
+    pendingAudioFile = audioFile;
     currentAudioFile = audioFile;
-    startExtraction(audioFile);
+
+    // Set up dialog with stem summary and estimated credits
+    // Default stems for extraction
+    juce::StringArray defaultStems { "Vocals", "Drums", "Bass", "Other" };
+    creditDialog.setStems(defaultStems);
+
+    // Estimate credits based on file (placeholder: 1 credit per MB, minimum 1)
+    float fileSizeMB = static_cast<float>(audioFile.getSize()) / (1024.0f * 1024.0f);
+    float estimatedCredits = std::max(1.0f, std::ceil(fileSizeMB));
+    creditDialog.setCredits(estimatedCredits);
+
+    // Show the confirmation dialog
+    creditDialog.setVisible(true);
+    creditDialog.toFront(true);
 }
 
 void MusicGPTExtractorAudioProcessorEditor::startExtraction(const juce::File& audioFile)

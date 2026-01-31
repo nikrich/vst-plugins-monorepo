@@ -5,6 +5,7 @@
 #include "ui/Layout.h"
 #include "ui/StemTrackList.h"
 #include "ui/SettingsPanel.h"
+#include "ui/CreditConfirmDialog.h"
 #include <Controls/LogoHeader.h>
 #include <Controls/TransportBar.h>
 #include <Controls/DropZone.h>
@@ -56,6 +57,10 @@ private:
 
     // Settings panel (modal)
     SettingsPanel settingsPanel;
+
+    // Credit confirmation dialog (modal)
+    CreditConfirmDialog creditDialog;
+    juce::File pendingAudioFile;
 
     // Settings button
     juce::TextButton settingsButton;
