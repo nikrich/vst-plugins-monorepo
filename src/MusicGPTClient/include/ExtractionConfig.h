@@ -5,7 +5,7 @@
 namespace musicgpt {
 
 struct ExtractionConfig {
-    juce::String apiEndpoint = "https://api.musicgpt.com/v1";
+    juce::String apiEndpoint = "https://api.musicgpt.com/api/public/v1";
     juce::String apiKey;
 
     juce::File outputDirectory;
