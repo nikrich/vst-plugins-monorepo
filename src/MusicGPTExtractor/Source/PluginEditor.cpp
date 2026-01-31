@@ -31,6 +31,7 @@ MusicGPTExtractorAudioProcessorEditor::MusicGPTExtractorAudioProcessorEditor(Mus
     dropZone.onFilesDropped = [this](const juce::StringArray& files) {
         handleFilesDropped(files);
     };
+    dropZone.setInterceptsMouseClicks(true, true);
     addAndMakeVisible(dropZone);
 
     // Stem selector for choosing which stems to extract
@@ -45,7 +46,9 @@ MusicGPTExtractorAudioProcessorEditor::MusicGPTExtractorAudioProcessorEditor(Mus
     addAndMakeVisible(stemTrackList);
 
     // Settings panel (modal overlay)
+    // CRITICAL: When hidden, must not intercept mouse clicks or it blocks drag-drop
     settingsPanel.setVisible(false);
+    settingsPanel.setInterceptsMouseClicks(false, false);
     settingsPanel.onSettingsSaved = [this]() {
         juce::String apiKey = SettingsPanel::loadStoredApiKey();
         juce::String endpoint = SettingsPanel::loadStoredEndpoint();
@@ -311,6 +314,8 @@ void MusicGPTExtractorAudioProcessorEditor::showSettings()
     if (proc.getApiKey().isNotEmpty())
         settingsPanel.setApiKey(proc.getApiKey());
 
+    // Enable mouse clicks when showing settings panel
+    settingsPanel.setInterceptsMouseClicks(true, true);
     settingsPanel.setVisible(true);
     settingsPanel.toFront(true);
 }
@@ -330,6 +335,10 @@ void MusicGPTExtractorAudioProcessorEditor::updateUIState()
             stemTrackList.setVisible(true);
             break;
     }
+
+    // Ensure settings panel doesn't block drag-drop when hidden
+    if (!settingsPanel.isVisible())
+        settingsPanel.setInterceptsMouseClicks(false, false);
 
     repaint();
 }
@@ -354,4 +363,28 @@ musicgpt::StemType MusicGPTExtractorAudioProcessorEditor::buildStemTypeMask() co
         return musicgpt::StemType::All;
 
     return static_cast<musicgpt::StemType>(mask);
+}
+
+//=====================================================================
+// FileDragAndDropTarget - fallback for OS file drags directly on editor
+//=====================================================================
+
+bool MusicGPTExtractorAudioProcessorEditor::isInterestedInFileDrag(const juce::StringArray& files)
+{
+    // Accept common audio file extensions
+    static const juce::StringArray audioExtensions { ".wav", ".mp3", ".aiff", ".aif", ".flac", ".ogg", ".m4a" };
+
+    for (const auto& file : files)
+    {
+        juce::String ext = juce::File(file).getFileExtension().toLowerCase();
+        if (audioExtensions.contains(ext))
+            return true;
+    }
+    return false;
+}
+
+void MusicGPTExtractorAudioProcessorEditor::filesDropped(const juce::StringArray& files, int, int)
+{
+    // Delegate to the same handler used by DropZone
+    handleFilesDropped(files);
 }
