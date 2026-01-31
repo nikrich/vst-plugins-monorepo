@@ -30,6 +30,7 @@ MusicGPTExtractorAudioProcessorEditor::MusicGPTExtractorAudioProcessorEditor(Mus
     dropZone.onFilesDropped = [this](const juce::StringArray& files) {
         handleFilesDropped(files);
     };
+    dropZone.setInterceptsMouseClicks(true, true);
     addAndMakeVisible(dropZone);
 
     // Stem track list (initially hidden)
