@@ -71,6 +71,7 @@ struct ProgressInfo {
     Phase phase = Phase::Uploading;
     float progress = 0.0f;  // 0.0 - 1.0
     juce::String message;
+    int eta = 0;  // Estimated time remaining in seconds
 };
 
 using ProgressCallback = std::function<void(const ProgressInfo&)>;

@@ -134,7 +134,7 @@ void MusicGPTExtractorAudioProcessorEditor::paint(juce::Graphics& g)
         g.setColour(th.accent1);
         g.fillRoundedRectangle(filledRect, 4.0f);
 
-        // Progress text
+        // Phase name (e.g., "Uploading...", "Processing...", "Downloading...")
         g.setColour(th.text);
         g.setFont(14.0f);
         auto textRect = progressRect.translated(0.0f, -30.0f).withHeight(24.0f);
@@ -145,6 +145,17 @@ void MusicGPTExtractorAudioProcessorEditor::paint(juce::Graphics& g)
         auto pctRect = progressRect.translated(0.0f, 20.0f).withHeight(20.0f);
         g.drawText(juce::String(static_cast<int>(extractionProgress * 100.0f)) + "%",
                    pctRect, juce::Justification::centred);
+
+        // ETA display (format as mm:ss)
+        if (extractionEta > 0)
+        {
+            int minutes = extractionEta / 60;
+            int seconds = extractionEta % 60;
+            juce::String etaText = "~" + juce::String(minutes) + ":"
+                                   + juce::String(seconds).paddedLeft('0', 2) + " remaining";
+            auto etaRect = pctRect.translated(0.0f, 18.0f).withHeight(20.0f);
+            g.drawText(etaText, etaRect, juce::Justification::centred);
+        }
     }
 }
 
@@ -249,6 +260,7 @@ void MusicGPTExtractorAudioProcessorEditor::startExtraction(const juce::File& au
     currentState = State::Extracting;
     progressMessage = "Uploading...";
     extractionProgress = 0.0f;
+    extractionEta = 0;
     updateUIState();
 
     proc.startExtraction(
@@ -269,17 +281,18 @@ void MusicGPTExtractorAudioProcessorEditor::startExtraction(const juce::File& au
 void MusicGPTExtractorAudioProcessorEditor::onExtractionProgress(const musicgpt::ProgressInfo& info)
 {
     extractionProgress = info.progress;
+    extractionEta = info.eta;
 
     switch (info.phase)
     {
         case musicgpt::ProgressInfo::Phase::Uploading:
-            progressMessage = "Uploading audio...";
+            progressMessage = "Uploading...";
             break;
         case musicgpt::ProgressInfo::Phase::Processing:
-            progressMessage = "Extracting stems...";
+            progressMessage = "Processing...";
             break;
         case musicgpt::ProgressInfo::Phase::Downloading:
-            progressMessage = "Downloading stems...";
+            progressMessage = "Downloading...";
             break;
     }
 

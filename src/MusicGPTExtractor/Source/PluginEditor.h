@@ -49,6 +49,7 @@ private:
     juce::File currentAudioFile;
     juce::String progressMessage;
     float extractionProgress { 0.0f };
+    int extractionEta { 0 };  // Estimated time remaining in seconds
 
     // Header
     ui::controls::LogoHeader logoHeader;
