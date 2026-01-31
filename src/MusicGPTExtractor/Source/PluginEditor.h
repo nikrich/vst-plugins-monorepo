@@ -8,6 +8,7 @@
 #include <Controls/LogoHeader.h>
 #include <Controls/TransportBar.h>
 #include <Controls/DropZone.h>
+#include <Controls/StemSelector.h>
 #include <Styling/Theme.h>
 #include <BinaryData.h>
 
@@ -37,6 +38,7 @@ private:
     void loadStemsIntoUI(const std::vector<musicgpt::StemResult>& stems);
     void showSettings();
     void updateUIState();
+    musicgpt::StemType buildStemTypeMask() const;
 
     MusicGPTExtractorAudioProcessor& proc;
 
@@ -55,6 +57,9 @@ private:
 
     // File drop zone (shown when idle)
     ui::controls::DropZone dropZone;
+
+    // Stem selector for choosing which stems to extract
+    ui::controls::StemSelector stemSelector;
 
     // Stem track list (shown when stems are loaded)
     StemTrack::StemTrackList stemTrackList;
