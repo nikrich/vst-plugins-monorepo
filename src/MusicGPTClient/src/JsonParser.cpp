@@ -87,6 +87,14 @@ JsonParser::StatusResponse JsonParser::parseStatusResponse(const juce::String& j
     if (obj->hasProperty("progress"))
         result.progress = static_cast<float>(obj->getProperty("progress"));
 
+    // Extract ETA (estimated time remaining in seconds)
+    if (obj->hasProperty("eta"))
+        result.eta = static_cast<int>(obj->getProperty("eta"));
+    else if (obj->hasProperty("eta_seconds"))
+        result.eta = static_cast<int>(obj->getProperty("eta_seconds"));
+    else if (obj->hasProperty("time_remaining"))
+        result.eta = static_cast<int>(obj->getProperty("time_remaining"));
+
     // Extract stems/results
     juce::var stemsVar;
     if (obj->hasProperty("stems"))
