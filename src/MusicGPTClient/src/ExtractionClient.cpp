@@ -24,12 +24,12 @@ namespace {
     }
     juce::String stemTypeToString(StemType type) {
         juce::StringArray stems;
-        if (hasStem(type, StemType::Vocals)) stems.add("vocals");
-        if (hasStem(type, StemType::Drums)) stems.add("drums");
-        if (hasStem(type, StemType::Bass)) stems.add("bass");
-        if (hasStem(type, StemType::Other)) stems.add("other");
-        if (hasStem(type, StemType::Instrumental)) stems.add("instrumental");
-        return stems.joinIntoString(",");
+        if (hasStem(type, StemType::Vocals)) stems.add("\"vocals\"");
+        if (hasStem(type, StemType::Drums)) stems.add("\"drums\"");
+        if (hasStem(type, StemType::Bass)) stems.add("\"bass\"");
+        if (hasStem(type, StemType::Other)) stems.add("\"other\"");
+        if (hasStem(type, StemType::Instrumental)) stems.add("\"instrumental\"");
+        return "[" + stems.joinIntoString(",") + "]";
     }
 
     juce::String stemTypeToFileSuffix(StemType type) {
@@ -204,12 +204,14 @@ private:
         debugLog("Phase 1: Starting upload to /Extraction");
 
         std::vector<std::pair<juce::String, juce::String>> formFields;
-        formFields.push_back({"stems", stemTypeToString(job->requestedStems)});
+        juce::String stemsJson = stemTypeToString(job->requestedStems);
+        formFields.push_back({"stems", stemsJson});
+        debugLog("Stems JSON: " + stemsJson);
 
         auto uploadResponse = httpClient_.postMultipart(
             "/Extraction",
             job->audioFile,
-            "audio",
+            "audio_file",
             formFields,
             [this, job](float p) {
                 if (!job->cancelled.load())
