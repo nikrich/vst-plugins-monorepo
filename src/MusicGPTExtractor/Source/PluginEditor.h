@@ -24,41 +24,42 @@ public:
 
 private:
     void timerCallback() override;
-
-    // Extraction workflow
     void handleFilesDropped(const juce::StringArray& files);
     void startExtraction(const juce::File& audioFile);
-    void onExtractionStatus(api::ExtractionStatus status, float progress);
-    void onExtractionComplete(const api::ExtractionResult& result);
-    void loadStemsIntoPlayer(const juce::StringArray& stemPaths);
-    void showSettingsPanel();
+    void onExtractionProgress(const musicgpt::ProgressInfo& info);
+    void onExtractionComplete(const musicgpt::ExtractionResult& result);
+    void loadStemsIntoUI(const std::vector<musicgpt::StemResult>& stems);
+    void showSettings();
+    void updateUIState();
 
     MusicGPTExtractorAudioProcessor& proc;
 
-    // Header with settings button
+    // Current state
+    enum class State { Idle, Extracting, Ready };
+    State currentState { State::Idle };
+    juce::File currentAudioFile;
+    juce::String progressMessage;
+    float extractionProgress { 0.0f };
+
+    // Header
     ui::controls::LogoHeader logoHeader;
-    juce::TextButton settingsButton;
 
     // Transport controls
     ui::controls::TransportBar transportBar;
 
-    // Drop zone for file input (shown when no stems loaded)
+    // File drop zone (shown when idle)
     ui::controls::DropZone dropZone;
 
-    // Stem track list (shown after extraction)
+    // Stem track list (shown when stems are loaded)
     StemTrack::StemTrackList stemTrackList;
 
-    // Settings panel (modal overlay)
-    std::unique_ptr<SettingsPanel> settingsPanel;
+    // Settings panel (modal)
+    SettingsPanel settingsPanel;
 
-    // State
-    juce::File currentAudioFile;
-    bool extractionInProgress = false;
-    api::ExtractionStatus extractionStatus = api::ExtractionStatus::Idle;
-    float extractionProgress = 0.0f;
-    juce::String statusMessage;
+    // Settings button
+    juce::TextButton settingsButton;
 
-    // Format manager for loading thumbnails
+    // Audio format manager for waveform display
     juce::AudioFormatManager formatManager;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MusicGPTExtractorAudioProcessorEditor)

@@ -369,13 +369,13 @@ public:
             {
                 // Still need to advance the read position to stay in sync
                 stem->getSource()->getNextAudioBlock(
-                    juce::AudioSourceChannelInfo(stemBuffer, 0, bufferToFill.numSamples));
+                    juce::AudioSourceChannelInfo(&stemBuffer, 0, bufferToFill.numSamples));
                 continue;
             }
 
             // Read stem audio
             stemBuffer.clear();
-            juce::AudioSourceChannelInfo stemInfo(stemBuffer, 0, bufferToFill.numSamples);
+            juce::AudioSourceChannelInfo stemInfo(&stemBuffer, 0, bufferToFill.numSamples);
             stem->getSource()->getNextAudioBlock(stemInfo);
 
             // Apply stem gain and add to output

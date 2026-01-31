@@ -26,7 +26,7 @@ public:
         addAndMakeVisible(endpointLabel);
 
         endpointInput.setMultiLine(false);
-        endpointInput.setTextToShowWhenEmpty("https://api.musicgpt.example/v1/extract", juce::Colours::grey);
+        endpointInput.setTextToShowWhenEmpty("https://api.musicgpt.com/v1", juce::Colours::grey);
         endpointInput.setFont(juce::Font(juce::FontOptions(14.0f)));
         endpointInput.setColour(juce::TextEditor::backgroundColourId, juce::Colour(0xFF2A2D35));
         endpointInput.setColour(juce::TextEditor::outlineColourId, juce::Colours::white.withAlpha(0.2f));
@@ -139,6 +139,11 @@ public:
         return endpointInput.getText().trim();
     }
 
+    void setApiKey(const juce::String& key)
+    {
+        apiKeyInput.setText(key, juce::dontSendNotification);
+    }
+
     bool hasValidApiKey() const
     {
         return getApiKey().isNotEmpty();
@@ -164,9 +169,9 @@ public:
     {
         auto props = getPropertiesFile();
         if (props == nullptr)
-            return "https://api.musicgpt.example/v1/extract";
+            return "https://api.musicgpt.com/v1";
         juce::String endpoint = props->getValue("endpoint", "");
-        return endpoint.isEmpty() ? "https://api.musicgpt.example/v1/extract" : endpoint;
+        return endpoint.isEmpty() ? "https://api.musicgpt.com/v1" : endpoint;
     }
 
 private:

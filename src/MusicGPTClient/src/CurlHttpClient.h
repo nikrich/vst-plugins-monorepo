@@ -14,7 +14,8 @@ struct HttpResponse {
     bool success = false;
 };
 
-using ProgressCallback = std::function<void(float progress)>;
+// HTTP-level progress callback (raw float 0-1)
+using HttpProgressCallback = std::function<void(float progress)>;
 
 class CurlHttpClient {
 public:
@@ -35,7 +36,7 @@ public:
         const juce::File& file,
         const juce::String& fieldName,
         const std::vector<std::pair<juce::String, juce::String>>& formFields,
-        ProgressCallback progressCallback = nullptr
+        HttpProgressCallback progressCallback = nullptr
     );
 
     HttpResponse get(const juce::String& endpoint);
@@ -43,7 +44,7 @@ public:
     bool downloadFile(
         const juce::String& url,
         const juce::File& destination,
-        ProgressCallback progressCallback = nullptr
+        HttpProgressCallback progressCallback = nullptr
     );
 
     void cancel();
@@ -66,7 +67,7 @@ private:
     std::atomic<bool> cancelled_{false};
 
     struct ProgressData {
-        ProgressCallback callback;
+        HttpProgressCallback callback;
         std::atomic<bool>* cancelled;
         bool isUpload;
     };
