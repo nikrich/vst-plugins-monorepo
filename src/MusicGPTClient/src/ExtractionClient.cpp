@@ -2,18 +2,34 @@
 #include "CurlHttpClient.h"
 #include "JsonParser.h"
 #include <deque>
+#include <fstream>
 
 namespace musicgpt {
 
 namespace {
+    // Debug logging - writes to ~/Documents/MusicGPTExtractor.log
+    void debugLog(const juce::String& message) {
+        static juce::File logFile = juce::File::getSpecialLocation(juce::File::userDocumentsDirectory)
+            .getChildFile("MusicGPTExtractor.log");
+        static bool initialized = false;
+
+        if (!initialized) {
+            logFile.deleteFile();
+            initialized = true;
+        }
+
+        juce::String timestamp = juce::Time::getCurrentTime().toString(true, true, true, true);
+        juce::String line = "[" + timestamp + "] " + message + "\n";
+        logFile.appendText(line);
+    }
     juce::String stemTypeToString(StemType type) {
         juce::StringArray stems;
-        if (hasStem(type, StemType::Vocals)) stems.add("vocals");
-        if (hasStem(type, StemType::Drums)) stems.add("drums");
-        if (hasStem(type, StemType::Bass)) stems.add("bass");
-        if (hasStem(type, StemType::Other)) stems.add("other");
-        if (hasStem(type, StemType::Instrumental)) stems.add("instrumental");
-        return stems.joinIntoString(",");
+        if (hasStem(type, StemType::Vocals)) stems.add("\"vocals\"");
+        if (hasStem(type, StemType::Drums)) stems.add("\"drums\"");
+        if (hasStem(type, StemType::Bass)) stems.add("\"bass\"");
+        if (hasStem(type, StemType::Other)) stems.add("\"other\"");
+        if (hasStem(type, StemType::Instrumental)) stems.add("\"instrumental\"");
+        return "[" + stems.joinIntoString(",") + "]";
     }
 
     juce::String stemTypeToFileSuffix(StemType type) {
@@ -178,16 +194,24 @@ private:
         ExtractionResult result;
         result.jobId = job->jobId;
 
+        debugLog("=== Starting extraction job: " + job->jobId);
+        debugLog("Audio file: " + job->audioFile.getFullPathName());
+        debugLog("Requested stems: " + stemTypeToString(job->requestedStems));
+        debugLog("API endpoint: " + config_.apiEndpoint);
+
         // Phase 1: Upload
         reportProgress(job, ProgressInfo::Phase::Uploading, 0.0f, "Uploading audio file...");
+        debugLog("Phase 1: Starting upload to /Extraction");
 
         std::vector<std::pair<juce::String, juce::String>> formFields;
-        formFields.push_back({"stems", stemTypeToString(job->requestedStems)});
+        juce::String stemsJson = stemTypeToString(job->requestedStems);
+        formFields.push_back({"stems", stemsJson});
+        debugLog("Stems JSON: " + stemsJson);
 
         auto uploadResponse = httpClient_.postMultipart(
-            "/extract",
+            "/Extraction",
             job->audioFile,
-            "audio",
+            "audio_file",
             formFields,
             [this, job](float p) {
                 if (!job->cancelled.load())
@@ -195,7 +219,14 @@ private:
             }
         );
 
+        debugLog("Upload response - success: " + juce::String(uploadResponse.success ? "true" : "false"));
+        debugLog("Upload response - status code: " + juce::String(uploadResponse.statusCode));
+        debugLog("Upload response - body: " + uploadResponse.body.substring(0, 2000));
+        if (uploadResponse.errorMessage.isNotEmpty())
+            debugLog("Upload response - error: " + uploadResponse.errorMessage);
+
         if (job->cancelled.load()) {
+            debugLog("Job cancelled during upload");
             completeJob(job, makeResult(job->jobId, JobStatus::Cancelled, ErrorType::Cancelled, "Job cancelled"));
             return;
         }
@@ -204,35 +235,60 @@ private:
             auto errorType = uploadResponse.errorMessage.isNotEmpty()
                 ? ErrorType::NetworkError
                 : JsonParser::classifyError(static_cast<int>(uploadResponse.statusCode), uploadResponse.body);
+            debugLog("Upload failed - errorType: " + juce::String(static_cast<int>(errorType)));
             completeJob(job, makeResult(job->jobId, JobStatus::Failed, errorType,
                 uploadResponse.errorMessage.isNotEmpty() ? uploadResponse.errorMessage : "Upload failed"));
             return;
         }
 
         auto uploadResult = JsonParser::parseUploadResponse(uploadResponse.body);
+        debugLog("Parse upload response - success: " + juce::String(uploadResult.success ? "true" : "false"));
+        debugLog("Parse upload response - jobId: " + uploadResult.jobId);
+        if (uploadResult.errorMessage.isNotEmpty())
+            debugLog("Parse upload response - error: " + uploadResult.errorMessage);
+
         if (!uploadResult.success) {
+            debugLog("Failed to parse upload response");
             completeJob(job, makeResult(job->jobId, JobStatus::Failed, ErrorType::ParseError, uploadResult.errorMessage));
             return;
         }
 
         job->remoteJobId = uploadResult.jobId;
+        debugLog("Remote job ID assigned: " + job->remoteJobId);
 
         // Phase 2: Poll for status
+        debugLog("Phase 2: Starting status polling");
         reportProgress(job, ProgressInfo::Phase::Processing, 0.0f, "Processing...");
 
         JsonParser::StatusResponse statusResult;
         int retryCount = 0;
+        int pollCount = 0;
 
         while (!job->cancelled.load() && !threadShouldExit()) {
             Thread::sleep(config_.pollIntervalMs);
+            pollCount++;
 
-            auto statusResponse = httpClient_.get("/jobs/" + job->remoteJobId);
+            juce::String statusUrl = "/byId?conversionType=EXTRACTION&task_id=" + job->remoteJobId;
+            debugLog("Poll #" + juce::String(pollCount) + " - GET " + statusUrl);
 
-            if (job->cancelled.load()) break;
+            auto statusResponse = httpClient_.get(statusUrl);
+
+            debugLog("Status response - success: " + juce::String(statusResponse.success ? "true" : "false"));
+            debugLog("Status response - status code: " + juce::String(statusResponse.statusCode));
+            debugLog("Status response - body: " + statusResponse.body.substring(0, 2000));
+            if (statusResponse.errorMessage.isNotEmpty())
+                debugLog("Status response - error: " + statusResponse.errorMessage);
+
+            if (job->cancelled.load()) {
+                debugLog("Job cancelled during polling");
+                break;
+            }
 
             if (!statusResponse.success) {
                 retryCount++;
+                debugLog("Status request failed, retry count: " + juce::String(retryCount));
                 if (retryCount >= config_.maxRetries) {
+                    debugLog("Max retries exceeded, failing job");
                     completeJob(job, makeResult(job->jobId, JobStatus::Failed, ErrorType::NetworkError, "Failed to get job status"));
                     return;
                 }
@@ -243,28 +299,43 @@ private:
             retryCount = 0;
             statusResult = JsonParser::parseStatusResponse(statusResponse.body);
 
+            debugLog("Parsed status - success: " + juce::String(statusResult.success ? "true" : "false"));
+            debugLog("Parsed status - status: " + juce::String(static_cast<int>(statusResult.status)));
+            debugLog("Parsed status - progress: " + juce::String(statusResult.progress));
+            debugLog("Parsed status - stems count: " + juce::String(static_cast<int>(statusResult.stems.size())));
+            if (statusResult.errorMessage.isNotEmpty())
+                debugLog("Parsed status - error: " + statusResult.errorMessage);
+
             if (!statusResult.success) {
+                debugLog("Failed to parse status response");
                 completeJob(job, makeResult(job->jobId, JobStatus::Failed, statusResult.errorType, statusResult.errorMessage));
                 return;
             }
 
             reportProgress(job, ProgressInfo::Phase::Processing, statusResult.progress, "Processing...");
 
-            if (statusResult.status == JobStatus::Succeeded)
+            if (statusResult.status == JobStatus::Succeeded) {
+                debugLog("Job succeeded, moving to download phase");
                 break;
+            }
 
             if (statusResult.status == JobStatus::Failed) {
+                debugLog("Job failed on server");
                 completeJob(job, makeResult(job->jobId, JobStatus::Failed, statusResult.errorType, statusResult.errorMessage));
                 return;
             }
         }
 
         if (job->cancelled.load()) {
+            debugLog("Job cancelled after polling loop");
             completeJob(job, makeResult(job->jobId, JobStatus::Cancelled, ErrorType::Cancelled, "Job cancelled"));
             return;
         }
 
         // Phase 3: Download stems
+        debugLog("Phase 3: Starting stem downloads");
+        debugLog("Number of stems to download: " + juce::String(static_cast<int>(statusResult.stems.size())));
+        debugLog("Output directory: " + config_.outputDirectory.getFullPathName());
         reportProgress(job, ProgressInfo::Phase::Downloading, 0.0f, "Downloading stems...");
 
         result.status = JobStatus::Succeeded;
@@ -272,6 +343,7 @@ private:
 
         for (size_t i = 0; i < statusResult.stems.size(); ++i) {
             if (job->cancelled.load()) {
+                debugLog("Job cancelled during download");
                 completeJob(job, makeResult(job->jobId, JobStatus::Cancelled, ErrorType::Cancelled, "Job cancelled"));
                 return;
             }
@@ -279,6 +351,10 @@ private:
             auto& stem = statusResult.stems[i];
             juce::String fileName = baseName + stemTypeToFileSuffix(stem.type) + ".wav";
             juce::File destFile = config_.outputDirectory.getChildFile(fileName);
+
+            debugLog("Downloading stem " + juce::String(static_cast<int>(i + 1)) + "/" + juce::String(static_cast<int>(statusResult.stems.size())));
+            debugLog("  URL: " + stem.url);
+            debugLog("  Destination: " + destFile.getFullPathName());
 
             float baseProgress = static_cast<float>(i) / static_cast<float>(statusResult.stems.size());
             float progressRange = 1.0f / static_cast<float>(statusResult.stems.size());
@@ -292,7 +368,10 @@ private:
                 }
             );
 
+            debugLog("  Download result: " + juce::String(downloadSuccess ? "success" : "failed"));
+
             if (!downloadSuccess) {
+                debugLog("Failed to download stem: " + fileName);
                 completeJob(job, makeResult(job->jobId, JobStatus::Failed, ErrorType::FileIOError, "Failed to download stem: " + fileName));
                 return;
             }
@@ -305,6 +384,7 @@ private:
         }
 
         result.error = ErrorType::None;
+        debugLog("=== Extraction completed successfully");
         completeJob(job, result);
     }
 

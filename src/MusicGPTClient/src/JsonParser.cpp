@@ -26,7 +26,9 @@ JsonParser::UploadResponse JsonParser::parseUploadResponse(const juce::String& j
     }
 
     // Extract job ID
-    if (obj->hasProperty("job_id")) {
+    if (obj->hasProperty("task_id")) {
+        result.jobId = obj->getProperty("task_id").toString();
+    } else if (obj->hasProperty("job_id")) {
         result.jobId = obj->getProperty("job_id").toString();
     } else if (obj->hasProperty("jobId")) {
         result.jobId = obj->getProperty("jobId").toString();
@@ -69,51 +71,80 @@ JsonParser::StatusResponse JsonParser::parseStatusResponse(const juce::String& j
         return result;
     }
 
+    // MusicGPT API returns data nested in "conversion" object
+    juce::DynamicObject* dataObj = obj;
+    if (obj->hasProperty("conversion")) {
+        if (auto* convObj = obj->getProperty("conversion").getDynamicObject())
+            dataObj = convObj;
+    }
+
     // Extract job ID
-    if (obj->hasProperty("job_id"))
-        result.jobId = obj->getProperty("job_id").toString();
-    else if (obj->hasProperty("jobId"))
-        result.jobId = obj->getProperty("jobId").toString();
-    else if (obj->hasProperty("id"))
-        result.jobId = obj->getProperty("id").toString();
+    if (dataObj->hasProperty("task_id"))
+        result.jobId = dataObj->getProperty("task_id").toString();
+    else if (dataObj->hasProperty("job_id"))
+        result.jobId = dataObj->getProperty("job_id").toString();
+    else if (dataObj->hasProperty("jobId"))
+        result.jobId = dataObj->getProperty("jobId").toString();
+    else if (dataObj->hasProperty("id"))
+        result.jobId = dataObj->getProperty("id").toString();
 
     // Extract status
     juce::String statusStr;
-    if (obj->hasProperty("status"))
-        statusStr = obj->getProperty("status").toString();
+    if (dataObj->hasProperty("status"))
+        statusStr = dataObj->getProperty("status").toString();
     result.status = parseJobStatus(statusStr);
 
-    // Extract progress
-    if (obj->hasProperty("progress"))
-        result.progress = static_cast<float>(obj->getProperty("progress"));
+    // Extract progress (may not always be present)
+    if (dataObj->hasProperty("progress"))
+        result.progress = static_cast<float>(dataObj->getProperty("progress"));
 
-    // Extract stems/results
-    juce::var stemsVar;
-    if (obj->hasProperty("stems"))
-        stemsVar = obj->getProperty("stems");
-    else if (obj->hasProperty("results"))
-        stemsVar = obj->getProperty("results");
-    else if (obj->hasProperty("outputs"))
-        stemsVar = obj->getProperty("outputs");
+    // Extract stems - MusicGPT uses "audio_url" object with stem names as keys
+    // e.g., {"vocals": "https://...", "drums": "https://..."}
+    juce::var audioUrlVar;
+    if (obj->hasProperty("audio_url"))
+        audioUrlVar = obj->getProperty("audio_url");
+    else if (dataObj->hasProperty("audio_url"))
+        audioUrlVar = dataObj->getProperty("audio_url");
 
-    if (auto* stemsArray = stemsVar.getArray()) {
-        for (const auto& stemVar : *stemsArray) {
-            if (auto* stemObj = stemVar.getDynamicObject()) {
-                StemResult stem;
-
-                juce::String typeStr;
-                if (stemObj->hasProperty("type"))
-                    typeStr = stemObj->getProperty("type").toString();
-                else if (stemObj->hasProperty("name"))
-                    typeStr = stemObj->getProperty("name").toString();
-                stem.type = parseStemType(typeStr);
-
-                if (stemObj->hasProperty("url"))
-                    stem.url = stemObj->getProperty("url").toString();
-                else if (stemObj->hasProperty("download_url"))
-                    stem.url = stemObj->getProperty("download_url").toString();
-
+    if (auto* audioUrlObj = audioUrlVar.getDynamicObject()) {
+        for (const auto& prop : audioUrlObj->getProperties()) {
+            StemResult stem;
+            stem.type = parseStemType(prop.name.toString());
+            stem.url = prop.value.toString();
+            if (stem.url.isNotEmpty())
                 result.stems.push_back(stem);
+        }
+    }
+
+    // Also check for array format (stems/results/outputs)
+    if (result.stems.empty()) {
+        juce::var stemsVar;
+        if (dataObj->hasProperty("stems"))
+            stemsVar = dataObj->getProperty("stems");
+        else if (dataObj->hasProperty("results"))
+            stemsVar = dataObj->getProperty("results");
+        else if (dataObj->hasProperty("outputs"))
+            stemsVar = dataObj->getProperty("outputs");
+
+        if (auto* stemsArray = stemsVar.getArray()) {
+            for (const auto& stemVar : *stemsArray) {
+                if (auto* stemObj = stemVar.getDynamicObject()) {
+                    StemResult stem;
+
+                    juce::String typeStr;
+                    if (stemObj->hasProperty("type"))
+                        typeStr = stemObj->getProperty("type").toString();
+                    else if (stemObj->hasProperty("name"))
+                        typeStr = stemObj->getProperty("name").toString();
+                    stem.type = parseStemType(typeStr);
+
+                    if (stemObj->hasProperty("url"))
+                        stem.url = stemObj->getProperty("url").toString();
+                    else if (stemObj->hasProperty("download_url"))
+                        stem.url = stemObj->getProperty("download_url").toString();
+
+                    result.stems.push_back(stem);
+                }
             }
         }
     }
@@ -202,13 +233,13 @@ ErrorType JsonParser::classifyError(int httpStatus, const juce::String& response
 JobStatus JsonParser::parseJobStatus(const juce::String& statusStr) {
     juce::String lower = statusStr.toLowerCase();
 
-    if (lower == "pending" || lower == "queued" || lower == "waiting")
+    if (lower == "pending" || lower == "queued" || lower == "waiting" || lower == "in_queue")
         return JobStatus::Pending;
-    if (lower == "processing" || lower == "running" || lower == "in_progress")
+    if (lower == "processing" || lower == "running" || lower == "in_progress" || lower == "started")
         return JobStatus::Processing;
-    if (lower == "succeeded" || lower == "success" || lower == "completed" || lower == "done")
+    if (lower == "succeeded" || lower == "success" || lower == "completed" || lower == "done" || lower == "finished")
         return JobStatus::Succeeded;
-    if (lower == "failed" || lower == "error")
+    if (lower == "failed" || lower == "error" || lower == "failure")
         return JobStatus::Failed;
     if (lower == "cancelled" || lower == "canceled")
         return JobStatus::Cancelled;
