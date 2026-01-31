@@ -3,126 +3,80 @@
 #include <juce_audio_formats/juce_audio_formats.h>
 #include <array>
 #include <atomic>
+#include <memory>
 
-// Multi-stem audio player with individual level control
+namespace audio {
+
+// Individual stem track
+struct StemTrack
+{
+    juce::String name;
+    std::unique_ptr<juce::AudioBuffer<float>> buffer;
+    std::atomic<float> gain { 1.0f };
+    std::atomic<bool> muted { false };
+    std::atomic<bool> solo { false };
+};
+
+// Player for multiple stem tracks with mixing
 class StemPlayer
 {
 public:
-    enum class Stem { Vocals = 0, Drums, Bass, Other, Count };
+    static constexpr int kMaxStems = 5;
 
-    StemPlayer()
-    {
-        formatManager.registerBasicFormats();
-    }
+    StemPlayer() = default;
+    ~StemPlayer() = default;
 
-    void prepare(double sampleRate, int samplesPerBlock)
-    {
-        currentSampleRate = sampleRate;
-        currentBlockSize = samplesPerBlock;
+    // Prepare for playback
+    void prepare(double sampleRate, int samplesPerBlock);
 
-        for (auto& src : sources)
-        {
-            if (src)
-                src->prepareToPlay(samplesPerBlock, sampleRate);
-        }
-    }
+    // Load stems from files
+    bool loadStems(const juce::StringArray& stemPaths);
 
-    void loadStems(const juce::File& vocals, const juce::File& drums,
-                   const juce::File& bass, const juce::File& other)
-    {
-        loadStem(Stem::Vocals, vocals);
-        loadStem(Stem::Drums, drums);
-        loadStem(Stem::Bass, bass);
-        loadStem(Stem::Other, other);
-    }
+    // Clear all loaded stems
+    void clearStems();
 
-    void loadStem(Stem stem, const juce::File& file)
-    {
-        const int idx = static_cast<int>(stem);
-        if (idx < 0 || idx >= static_cast<int>(Stem::Count))
-            return;
+    // Process audio block (mix all stems to output)
+    void processBlock(juce::AudioBuffer<float>& outputBuffer);
 
-        auto* reader = formatManager.createReaderFor(file);
-        if (reader == nullptr)
-            return;
+    // Transport controls
+    void play() { playing.store(true); }
+    void pause() { playing.store(false); }
+    void stop();
+    void setPosition(double normalizedPosition);
+    double getPosition() const;
+    double getTotalDuration() const { return totalDurationSeconds; }
 
-        auto newSource = std::make_unique<juce::AudioFormatReaderSource>(reader, true);
-        newSource->prepareToPlay(currentBlockSize, currentSampleRate);
+    // Stem controls
+    void setStemGain(int stemIndex, float gain);
+    void setStemMuted(int stemIndex, bool muted);
+    void setStemSolo(int stemIndex, bool solo);
 
-        sources[idx] = std::move(newSource);
-        stemLoaded[idx] = true;
-    }
+    float getStemGain(int stemIndex) const;
+    bool isStemMuted(int stemIndex) const;
+    bool isStemSolo(int stemIndex) const;
 
-    void setLevels(float vocals, float drums, float bass, float other)
-    {
-        levels[static_cast<int>(Stem::Vocals)] = vocals;
-        levels[static_cast<int>(Stem::Drums)] = drums;
-        levels[static_cast<int>(Stem::Bass)] = bass;
-        levels[static_cast<int>(Stem::Other)] = other;
-    }
-
-    void play()
-    {
-        for (auto& src : sources)
-        {
-            if (src)
-                src->setNextReadPosition(0);
-        }
-        isPlaying = true;
-    }
-
-    void stop()
-    {
-        isPlaying = false;
-    }
-
-    void processBlock(juce::AudioBuffer<float>& buffer)
-    {
-        if (!isPlaying.load())
-            return;
-
-        const int numSamples = buffer.getNumSamples();
-        const int numChannels = buffer.getNumChannels();
-
-        juce::AudioSourceChannelInfo info(&buffer, 0, numSamples);
-
-        // Temporary buffer for each stem
-        juce::AudioBuffer<float> stemBuffer(numChannels, numSamples);
-
-        for (int i = 0; i < static_cast<int>(Stem::Count); ++i)
-        {
-            if (!sources[i] || !stemLoaded[i])
-                continue;
-
-            stemBuffer.clear();
-            juce::AudioSourceChannelInfo stemInfo(&stemBuffer, 0, numSamples);
-            sources[i]->getNextAudioBlock(stemInfo);
-
-            const float level = levels[i].load();
-            for (int ch = 0; ch < numChannels; ++ch)
-            {
-                buffer.addFrom(ch, 0, stemBuffer, ch, 0, numSamples, level);
-            }
-        }
-    }
-
-    bool hasLoadedStems() const
-    {
-        for (int i = 0; i < static_cast<int>(Stem::Count); ++i)
-        {
-            if (stemLoaded[i])
-                return true;
-        }
-        return false;
-    }
+    // Query
+    int getNumStems() const { return numStems; }
+    juce::String getStemName(int index) const;
+    bool isPlaying() const { return playing.load(); }
 
 private:
-    juce::AudioFormatManager formatManager;
-    std::array<std::unique_ptr<juce::AudioFormatReaderSource>, static_cast<size_t>(Stem::Count)> sources;
-    std::array<bool, static_cast<size_t>(Stem::Count)> stemLoaded { false, false, false, false };
-    std::array<std::atomic<float>, static_cast<size_t>(Stem::Count)> levels { 1.0f, 1.0f, 1.0f, 1.0f };
+    double sampleRateHz = 44100.0;
+    int blockSize = 512;
 
-    std::atomic<bool> isPlaying { false };
-    double currentSampleRate { 44100.0 };
-    int currentBlockSize { 512 };
+    std::array<StemTrack, kMaxStems> stems;
+    int numStems = 0;
+
+    std::atomic<bool> playing { false };
+    std::atomic<int64_t> playheadSamples { 0 };
+    int64_t totalSamples = 0;
+    double totalDurationSeconds = 0.0;
+
+    juce::AudioFormatManager formatManager;
+
+    bool hasSoloActive() const;
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(StemPlayer)
 };
+
+} // namespace audio
