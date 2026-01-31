@@ -5,7 +5,10 @@
 namespace ui { namespace controls {
 
 // DropZone: file drag-and-drop target with visual feedback, theme colours
-class DropZone : public juce::Component, public juce::FileDragAndDropTarget {
+// Supports both OS file drags (FileDragAndDropTarget) and DAW drags (DragAndDropTarget)
+class DropZone : public juce::Component,
+                 public juce::FileDragAndDropTarget,
+                 public juce::DragAndDropTarget {
 public:
     std::function<void(const juce::StringArray& files)> onFilesDropped;
     std::function<bool(const juce::StringArray& files)> onFilesInterested;
@@ -86,7 +89,81 @@ public:
             onFilesDropped(files);
     }
 
+    // DragAndDropTarget - handles DAW drags (internal JUCE drag-and-drop)
+    bool isInterestedInDragSource(const SourceDetails& details) override
+    {
+        auto files = extractFilesFromDragSource(details);
+        if (files.isEmpty())
+            return false;
+
+        if (onFilesInterested)
+            return onFilesInterested(files);
+
+        if (acceptedExtensions.isEmpty())
+            return true;
+
+        for (const auto& file : files)
+        {
+            juce::String ext = juce::File(file).getFileExtension().toLowerCase();
+            if (acceptedExtensions.contains(ext) || acceptedExtensions.contains(ext.substring(1)))
+                return true;
+        }
+        return false;
+    }
+
+    void itemDragEnter(const SourceDetails&) override
+    {
+        dragging = true;
+        repaint();
+    }
+
+    void itemDragExit(const SourceDetails&) override
+    {
+        dragging = false;
+        repaint();
+    }
+
+    void itemDropped(const SourceDetails& details) override
+    {
+        dragging = false;
+        repaint();
+
+        auto files = extractFilesFromDragSource(details);
+        if (files.isNotEmpty() && onFilesDropped)
+            onFilesDropped(files);
+    }
+
 private:
+    // Extract file paths from DAW drag source
+    // DAWs may send: String path, StringArray, Array of paths, or file:// URLs
+    juce::StringArray extractFilesFromDragSource(const SourceDetails& details)
+    {
+        juce::StringArray files;
+        const auto& desc = details.description;
+
+        if (desc.isString())
+        {
+            juce::String path = desc.toString();
+            if (path.startsWith("file://"))
+                path = juce::URL(path).getLocalFile().getFullPathName();
+            if (juce::File(path).existsAsFile())
+                files.add(path);
+        }
+        else if (desc.isArray())
+        {
+            for (int i = 0; i < desc.size(); ++i)
+            {
+                juce::String path = desc[i].toString();
+                if (path.startsWith("file://"))
+                    path = juce::URL(path).getLocalFile().getFullPathName();
+                if (juce::File(path).existsAsFile())
+                    files.add(path);
+            }
+        }
+
+        return files;
+    }
+
     bool dragging { false };
     juce::String label { "Drop files here" };
     juce::StringArray acceptedExtensions;
