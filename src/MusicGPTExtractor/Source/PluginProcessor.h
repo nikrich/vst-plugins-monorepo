@@ -57,6 +57,11 @@ public:
     bool isPlaying() const { return playing.load(); }
     void setPlaying(bool shouldPlay) { playing.store(shouldPlay); }
     double getPlaybackPosition() const { return playbackPosition.load(); }
+    void setPlaybackPosition(double pos);
+
+    // Stem paths for state persistence
+    const juce::StringArray& getLoadedStemPaths() const { return loadedStemPaths; }
+    void setLoadedStemPaths(const juce::StringArray& paths) { loadedStemPaths = paths; }
 
 private:
     double sampleRateHz = 44100.0;
@@ -66,6 +71,9 @@ private:
 
     std::atomic<bool> playing { false };
     std::atomic<double> playbackPosition { 0.0 };
+
+    // State persistence
+    juce::StringArray loadedStemPaths;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MusicGPTExtractorAudioProcessor)
 };

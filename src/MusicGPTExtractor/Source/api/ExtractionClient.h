@@ -1,10 +1,14 @@
 #pragma once
 #include <juce_core/juce_core.h>
+#include <juce_events/juce_events.h>
 #include <functional>
 #include <memory>
 #include <atomic>
 
 namespace api {
+
+// Forward declaration
+class ExtractionWorker;
 
 // Extraction job status
 enum class ExtractionStatus
@@ -67,6 +71,8 @@ public:
     float getProgress() const { return progress.load(); }
 
 private:
+    friend class ExtractionWorker;
+
     juce::String apiEndpoint { "https://api.musicgpt.example/v1/extract" };
     juce::String apiKey;
 
