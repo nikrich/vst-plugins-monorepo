@@ -452,7 +452,7 @@ ExtractionClient::ExtractionClient(const ExtractionConfig& config)
 }
 
 ExtractionClient::~ExtractionClient() {
-    cancelAsyncUpdate();
+    juce::AsyncUpdater::cancelPendingUpdate();
 }
 
 juce::String ExtractionClient::extractStems(
