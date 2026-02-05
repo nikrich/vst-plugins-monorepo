@@ -19,6 +19,15 @@
       "vst3BundleName": "Hungry Ghost Astral Halls.vst3",
       "mac": { "pkgId": "com.hungryghost.astralhalls" },
       "win": { "upgradeCode": "{9A7B4B70-3C2F-4E0E-8E37-5A9E19F6E2D5}" }
+    },
+    {
+      "id": "mbl",
+      "displayName": "Hungry Ghost Multiband Limiter",
+      "srcDir": "src/HungryGhostMultibandLimiter",
+      "vst3Target": "HungryGhostMultibandLimiter_VST3",
+      "vst3BundleName": "Hungry Ghost Multiband Limiter.vst3",
+      "mac": { "pkgId": "com.hungryghost.multiband.limiter" },
+      "win": { "upgradeCode": "{4D5E9F8A-2B1C-4A7D-9F3E-8C5B7D9E1A42}" }
     }
   ],
   "bundle": { "win": { "upgradeCode": "{7E1B0C5C-0C11-4B15-B1C9-4C6A7D9E9B22}" } }
