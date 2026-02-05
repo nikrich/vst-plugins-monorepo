@@ -30,15 +30,19 @@ Build plugins (Release)
   - cmake --build src/HungryGhostLimiter/build/xcode --config Release --target HungryGhostLimiter_VST3
   - Astral Halls: cmake -S src/HungryGhostReverb -B src/HungryGhostReverb/build/xcode -G Xcode
   - cmake --build src/HungryGhostReverb/build/xcode --config Release --target HungryGhostReverb_VST3
+  - Multiband Limiter: cmake -S src/HungryGhostMultibandLimiter -B src/HungryGhostMultibandLimiter/build/xcode -G Xcode
+  - cmake --build src/HungryGhostMultibandLimiter/build/xcode --config Release --target HungryGhostMultibandLimiter_VST3
 - Windows (VS 2022 generator, x64):
   - Limiter: cmake -S src/HungryGhostLimiter -B src/HungryGhostLimiter/build/vs -G "Visual Studio 17 2022" -A x64
   - cmake --build src/HungryGhostLimiter/build/vs --config Release --target HungryGhostLimiter_VST3
   - Astral Halls: cmake -S src/HungryGhostReverb -B src/HungryGhostReverb/build/vs -G "Visual Studio 17 2022" -A x64
   - cmake --build src/HungryGhostReverb/build/vs --config Release --target HungryGhostReverb_VST3
+  - Multiband Limiter: cmake -S src/HungryGhostMultibandLimiter -B src/HungryGhostMultibandLimiter/build/vs -G "Visual Studio 17 2022" -A x64
+  - cmake --build src/HungryGhostMultibandLimiter/build/vs --config Release --target HungryGhostMultibandLimiter_VST3
 
 Create installers (local)
 - macOS per‑plugin pkg:
-  - ./scripts/package_all_macos.sh --plugins limiter astral --version 0.1.0
+  - ./scripts/package_all_macos.sh --plugins limiter astral mbl --version 0.1.0
   - Outputs in packaging/macos/dist/
 - Windows per‑plugin MSI + bundle EXE (on Windows):
   - scripts\\package_all_windows.ps1 -Plugins limiter,astral -Version 0.1.0

@@ -48,6 +48,11 @@ jobs:
           rm -rf src/HungryGhostMultibandCompressor/build
           cmake -S src/HungryGhostMultibandCompressor -B src/HungryGhostMultibandCompressor/build -G Xcode
 
+      - name: Configure Multiband Limiter (Xcode)
+        run: |
+          rm -rf src/HungryGhostMultibandLimiter/build
+          cmake -S src/HungryGhostMultibandLimiter -B src/HungryGhostMultibandLimiter/build -G Xcode
+
       - name: Build Limiter (Release)
         run: |
           cmake --build src/HungryGhostLimiter/build --config Release --target HungryGhostLimiter_VST3
@@ -63,6 +68,10 @@ jobs:
       - name: Build Multiband Compressor (Release)
         run: |
           cmake --build src/HungryGhostMultibandCompressor/build --config Release --target HungryGhostMultibandCompressor_VST3
+
+      - name: Build Multiband Limiter (Release)
+        run: |
+          cmake --build src/HungryGhostMultibandLimiter/build --config Release --target HungryGhostMultibandLimiter_VST3
 
       - name: Package Limiter VST3
         id: pkg_limiter
@@ -104,6 +113,16 @@ jobs:
           ditto -c -k --sequesterRsrc --keepParent "$VST3_PATH" "$OUT_ZIP"
           echo "zip=$OUT_ZIP" >> $GITHUB_OUTPUT
 
+      - name: Package Multiband Limiter VST3
+        id: pkg_mbl
+        run: |
+          set -euo pipefail
+          ART_DIR="src/HungryGhostMultibandLimiter/build/HungryGhostMultibandLimiter_artefacts/Release/VST3"
+          VST3_PATH=$(find "$ART_DIR" -type d -name "*.vst3" -print -quit)
+          OUT_ZIP="HungryGhostMultibandLimiter-vst3-macos-${GITHUB_REF_NAME}.zip"
+          ditto -c -k --sequesterRsrc --keepParent "$VST3_PATH" "$OUT_ZIP"
+          echo "zip=$OUT_ZIP" >> $GITHUB_OUTPUT
+
       - name: Create GitHub Release and upload assets
         uses: softprops/action-gh-release@v2
         with:
@@ -115,3 +134,4 @@ jobs:
             ${{ steps.pkg_reverb.outputs.zip }}
             ${{ steps.pkg_saturation.outputs.zip }}
             ${{ steps.pkg_mbc.outputs.zip }}
+            ${{ steps.pkg_mbl.outputs.zip }}
