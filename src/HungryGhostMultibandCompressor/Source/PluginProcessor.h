@@ -25,10 +25,10 @@ public:
     bool producesMidi() const override { return false; }
     double getTailLengthSeconds() const override { return 0.0; }
 
-    int getNumPrograms() override { return 1; }
-    int getCurrentProgram() override { return 0; }
-    void setCurrentProgram(int) override {}
-    const juce::String getProgramName(int) override { return {}; }
+    int getNumPrograms() override;
+    int getCurrentProgram() override;
+    void setCurrentProgram(int) override;
+    const juce::String getProgramName(int) override;
     void changeProgramName(int, const juce::String&) override {}
 
     void getStateInformation(juce::MemoryBlock& destData) override;
@@ -45,8 +45,18 @@ private:
 
     // Global params (cached per block)
     int   bandCount = 2;
-    float crossoverHz[5] { 120.0f, 800.0f, 2500.0f, 6000.0f, 12000.0f };
+    std::vector<float> crossoverHz;
     float lookAheadMs = 3.0f;
+
+    // Factory presets
+    int currentProgramIndex = 0;
+    struct PresetConfig {
+        juce::String name;
+        std::map<juce::String, float> parameters;
+    };
+    std::vector<PresetConfig> factoryPresets;
+    void createFactoryPresets();
+    void loadPreset(const PresetConfig& preset);
 
     std::atomic<int> reportedLatency { 0 };
 
@@ -66,18 +76,14 @@ public:
     int getAnalyzerDecimate() const { return analyzerDecimate; }
     float getBandGrDb(int index) const { if (index < 0 || index >= 6) return 0.0f; return grBandDb[index].load(); }
 
-    // ====== M1 DSP graph state ======
-    struct SplitterConfig { float fcHz = 120.0f; };
-    SplitterConfig splitConfig;
-
-    // Working buffers for two bands
-    juce::AudioBuffer<float> bandLowDry, bandHighDry;
-    juce::AudioBuffer<float> bandLowProc, bandHighProc;
+    // ====== N-band DSP graph state ======
+    // Working buffers for N bands (dry = copy of input per band before compression)
+    std::vector<juce::AudioBuffer<float>> bandDry;
+    std::vector<juce::AudioBuffer<float>> bandProc;
 
     // DSP components
     std::unique_ptr<hgmbc::BandSplitterIIR> splitter;
-    std::unique_ptr<hgmbc::CompressorBand>  compLow;
-    std::unique_ptr<hgmbc::CompressorBand>  compHigh;
+    std::vector<std::unique_ptr<hgmbc::CompressorBand>> compressors;
 
     // ===== Parallel EQ Stage (Option B) =====
 static constexpr int kMaxEqBands = 16;
