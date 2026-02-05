@@ -34,6 +34,12 @@ void HungryGhostMultibandLimiterAudioProcessor::prepareToPlay(double sr, int sam
     // Configure with initial crossover frequency from parameters
     cachedCrossoverHz = apvts.getRawParameterValue("xover.1.Hz")->load();
     splitter->setCrossoverHz(cachedCrossoverHz);
+
+    // ===== STORY-MBL-003: Initialize per-band limiters =====
+    for (int b = 0; b < limiters.size(); ++b)
+    {
+        limiters[b].prepare((float)sr);
+    }
 }
 
 //==============================================================================
@@ -61,6 +67,23 @@ void HungryGhostMultibandLimiterAudioProcessor::processBlock(juce::AudioBuffer<f
     // Split input into bands
     splitter->process(buffer, bandBuffers);
 
+    // ===== STORY-MBL-007: Compute level metering data =====
+    // Master input level (before splitting)
+    float masterPeak = 0.0f;
+    for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
+        masterPeak = juce::jmax(masterPeak, buffer.getMagnitude(ch, 0, buffer.getNumSamples()));
+    masterInputDb.store(juce::Decibels::gainToDecibels(juce::jmax(masterPeak, 1.0e-6f)));
+
+    // Per-band input levels
+    auto computeDb = [](const juce::AudioBuffer<float>& buf) -> float {
+        float peak = 0.0f;
+        for (int ch = 0; ch < buf.getNumChannels(); ++ch)
+            peak = juce::jmax(peak, buf.getMagnitude(ch, 0, buf.getNumSamples()));
+        return juce::Decibels::gainToDecibels(juce::jmax(peak, 1.0e-6f));
+    };
+    for (size_t b = 0; b < bandBuffers.size() && b < 6; ++b)
+        bandInputDb[b].store(computeDb(bandBuffers[b]));
+
     // ===== STORY-MBL-003/004 TODO: Per-band limiting and recombination =====
     // For now, pass the split bands back to output as pass-through
     // This demonstrates the band splitting infrastructure is working
@@ -69,6 +92,16 @@ void HungryGhostMultibandLimiterAudioProcessor::processBlock(juce::AudioBuffer<f
         buffer.makeCopyOf(bandBuffers[0], true);  // Low band to output
         // High band will be summed by future limiting stage
     }
+
+    // ===== STORY-MBL-007: Compute band output levels =====
+    for (size_t b = 0; b < bandBuffers.size() && b < 6; ++b)
+        bandOutputDb[b].store(computeDb(bandBuffers[b]));
+
+    // ===== STORY-MBL-007: Compute master output level =====
+    float masterOutPeak = 0.0f;
+    for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
+        masterOutPeak = juce::jmax(masterOutPeak, buffer.getMagnitude(ch, 0, buffer.getNumSamples()));
+    masterOutputDb.store(juce::Decibels::gainToDecibels(juce::jmax(masterOutPeak, 1.0e-6f)));
 
     // Get per-band parameters (prepared for DSP integration)
     // These will be used by STORY-MBL-003/004 when DSP components are implemented

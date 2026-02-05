@@ -10,6 +10,8 @@
 #include <array>
 #include <juce_dsp/juce_dsp.h>
 #include "dsp/BandSplitterIIR.h"
+#include "dsp/LimiterBand.h"
+#include "dsp/Utilities.h"
 
 //==============================================================================
 
@@ -56,9 +58,24 @@ public:
     double getSampleRateHz() const { return sampleRateHz; }
     int getSamplesPerBlock() const { return samplesPerBlockExpected; }
 
+    //==============================================================================
+    // STORY-MBL-007: Per-band and master metering for visual feedback
+    float getBandGainReductionDb(int i) const { return i >= 0 && i < 6 ? bandGainReductionDb[i].load() : 0.0f; }
+    float getBandInputDb(int i) const { return i >= 0 && i < 6 ? bandInputDb[i].load() : -60.0f; }
+    float getBandOutputDb(int i) const { return i >= 0 && i < 6 ? bandOutputDb[i].load() : -60.0f; }
+    float getMasterInputDb() const { return masterInputDb.load(); }
+    float getMasterOutputDb() const { return masterOutputDb.load(); }
+
 private:
     double sampleRateHz = 44100.0;
     int samplesPerBlockExpected = 512;
+
+    // STORY-MBL-007: Atomic meter storage for thread-safe UI access
+    std::atomic<float> bandGainReductionDb[6] { 0,0,0,0,0,0 };
+    std::atomic<float> bandInputDb[6] { -60.0f, -60.0f, -60.0f, -60.0f, -60.0f, -60.0f };
+    std::atomic<float> bandOutputDb[6] { -60.0f, -60.0f, -60.0f, -60.0f, -60.0f, -60.0f };
+    std::atomic<float> masterInputDb { -60.0f };
+    std::atomic<float> masterOutputDb { -60.0f };
 
     // Parameter cache (for efficient lookup in processBlock)
     int cachedBandCount = 2;
@@ -72,6 +89,9 @@ private:
     // ===== STORY-MBL-002: Multiband Crossover System =====
     std::unique_ptr<hgml::BandSplitterIIR> splitter;
     std::vector<juce::AudioBuffer<float>> bandBuffers;
+
+    // ===== STORY-MBL-003: Per-band Limiting =====
+    std::array<hgml::LimiterBand, 2> limiters;  // Up to 2 bands for M1
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(HungryGhostMultibandLimiterAudioProcessor)
 };
