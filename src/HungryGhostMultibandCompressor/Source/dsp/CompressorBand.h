@@ -54,12 +54,15 @@ public:
         std::fill(env2.begin(), env2.end(), 0.0f);
     }
 
-    // In-place process on band; dryIn required to compute delta if needed by caller
-    void process(juce::AudioBuffer<float>& band)
+    // In-place process on band; detectorInput optional for external sidechain
+    void process(juce::AudioBuffer<float>& band, const juce::AudioBuffer<float>* detectorInput = nullptr)
     {
         const int N = band.getNumSamples();
         const int C = juce::jmin(band.getNumChannels(), numChannels);
         const float mix = juce::jlimit(0.0f, 100.0f, params.mix_pct) * 0.01f;
+
+        // Use external detector input if provided, otherwise use band input
+        const juce::AudioBuffer<float>& detSrc = detectorInput ? *detectorInput : band;
 
         for (int n = 0; n < N; ++n)
         {
@@ -67,7 +70,7 @@ public:
             float det = 0.0f;
             for (int ch = 0; ch < C; ++ch)
             {
-                float x = band.getReadPointer(ch)[n];
+                float x = detSrc.getReadPointer(ch)[n];
                 if (params.detectorType == 0) // Peak
                 {
                     float a = std::abs(x);
