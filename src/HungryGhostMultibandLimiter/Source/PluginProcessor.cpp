@@ -131,6 +131,53 @@ void HungryGhostMultibandLimiterAudioProcessor::processBlock(juce::AudioBuffer<f
         }
     }
 
+    // ===== STORY-MBL-004: Solo and Delta routing =====
+    // Check if any band is soloed
+    bool anyBandSoloed = false;
+    for (int b = 0; b < juce::jmin((int)bandBuffers.size(), (int)limiters.size()); ++b)
+    {
+        const auto id = [b](const char* name){ return juce::String("band.") + juce::String(b + 1) + "." + name; };
+        bool solo = *apvts.getRawParameterValue(id("solo")) > 0.5f;
+        if (solo) { anyBandSoloed = true; break; }
+    }
+
+    // Apply solo routing: zero out non-soloed bands if any are soloed
+    if (anyBandSoloed)
+    {
+        for (int b = 0; b < juce::jmin((int)bandBuffers.size(), (int)limiters.size()); ++b)
+        {
+            const auto id = [b](const char* name){ return juce::String("band.") + juce::String(b + 1) + "." + name; };
+            bool solo = *apvts.getRawParameterValue(id("solo")) > 0.5f;
+            if (!solo)
+            {
+                // Zero out this band since it's not soloed
+                for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
+                {
+                    float* data = buffer.getWritePointer(ch);
+                    const float* bandData = bandBuffers[b].getReadPointer(ch);
+                    for (int n = 0; n < buffer.getNumSamples(); ++n)
+                        data[n] -= bandData[n];  // Remove non-soloed band from output
+                }
+            }
+        }
+    }
+
+    // TODO: STORY-MBL-004 - Delta mode (output dry - wet difference for analysis)
+    // Requires storing original split band before limiting
+
+    // ===== STORY-MBL-004: Apply output trim (make-up gain) =====
+    float outputTrimDb = apvts.getRawParameterValue("global.outputTrim_dB")->load();
+    if (juce::jabs(outputTrimDb) > 0.01f)
+    {
+        float trimGain = hgml::dbToLin(outputTrimDb);
+        for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
+        {
+            float* data = buffer.getWritePointer(ch);
+            for (int n = 0; n < buffer.getNumSamples(); ++n)
+                data[n] *= trimGain;
+        }
+    }
+
     // ===== STORY-MBL-007: Compute band output levels =====
     for (size_t b = 0; b < bandBuffers.size() && b < 6; ++b)
         bandOutputDb[b].store(computeDb(bandBuffers[b]));
@@ -141,8 +188,10 @@ void HungryGhostMultibandLimiterAudioProcessor::processBlock(juce::AudioBuffer<f
         masterOutPeak = juce::jmax(masterOutPeak, buffer.getMagnitude(ch, 0, buffer.getNumSamples()));
     masterOutputDb.store(juce::Decibels::gainToDecibels(juce::jmax(masterOutPeak, 1.0e-6f)));
 
-    // TODO: STORY-MBL-004 - Output trim and latency compensation
-    // TODO: Handle solo/delta modes for per-band output routing
+    // ===== STORY-MBL-004: Latency reporting =====
+    // TODO: Calculate and report total latency (band splitter + look-ahead)
+    // Currently: BandSplitterIIR has ~1-2 sample latency (phase alignment)
+    // Future: Add look-ahead delay buffer if needed for true peak limiting
 }
 
 //==============================================================================
