@@ -7,12 +7,15 @@ AttenMeter::AttenMeter(const juce::String&)
     auto& th = Style::theme();
     setTrackColours(th.trackTop, th.trackBot);
     setFillColours(th.fillTop, th.fillBot);
-    startTimerHz(60); // animate smoothing ~60 FPS
+    // Timer starts on demand in setDb()
 }
 
 void AttenMeter::setDb(float db)
 {
     targetDb = juce::jlimit(0.0f, 12.0f, db);
+    // Start timer if it's not already running and values differ
+    if (!isTimerRunning() && std::abs(displayDb - targetDb) > 0.001f)
+        startTimerHz(60); // animate smoothing ~60 FPS
 }
 
 void AttenMeter::timerCallback()
@@ -28,6 +31,10 @@ void AttenMeter::timerCallback()
 
     if (std::abs(displayDb - old) > 0.01f)
         repaint();
+
+    // Stop timer when smoothing has converged (threshold: 0.001 dB)
+    if (std::abs(displayDb - targetDb) < 0.001f)
+        stopTimer();
 }
 
 void AttenMeter::paint(juce::Graphics& g)
