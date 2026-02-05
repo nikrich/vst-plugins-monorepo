@@ -20,9 +20,106 @@ HungryGhostMultibandCompressorAudioProcessor::HungryGhostMultibandCompressorAudi
       // Keep a sidechain bus available (not yet wired per-band; future milestone)
       .withInput ("Sidechain", juce::AudioChannelSet::stereo(), false))
 {
+    createFactoryPresets();
 }
 
 HungryGhostMultibandCompressorAudioProcessor::~HungryGhostMultibandCompressorAudioProcessor() = default;
+
+void HungryGhostMultibandCompressorAudioProcessor::createFactoryPresets()
+{
+    factoryPresets.clear();
+
+    // Preset 1: Bus Glue (gentle 2-band compression)
+    factoryPresets.push_back(PresetConfig{
+        "Bus Glue",
+        {
+            {"xover.1.Hz", 120.0f},
+            {"band.1.threshold_dB", -24.0f},
+            {"band.1.ratio", 1.5f},
+            {"band.1.knee_dB", 8.0f},
+            {"band.1.attack_ms", 15.0f},
+            {"band.1.release_ms", 150.0f},
+            {"band.1.mix_pct", 100.0f},
+            {"band.2.threshold_dB", -20.0f},
+            {"band.2.ratio", 1.3f},
+            {"band.2.knee_dB", 6.0f},
+            {"band.2.attack_ms", 10.0f},
+            {"band.2.release_ms", 120.0f},
+            {"band.2.mix_pct", 100.0f},
+        }
+    });
+
+    // Preset 2: Drum Split (60/250 Hz for drums)
+    factoryPresets.push_back(PresetConfig{
+        "Drum Split",
+        {
+            {"xover.1.Hz", 60.0f},
+            {"band.1.threshold_dB", -18.0f},
+            {"band.1.ratio", 4.0f},
+            {"band.1.knee_dB", 3.0f},
+            {"band.1.attack_ms", 5.0f},
+            {"band.1.release_ms", 100.0f},
+            {"band.1.mix_pct", 100.0f},
+            {"band.2.threshold_dB", -15.0f},
+            {"band.2.ratio", 2.5f},
+            {"band.2.knee_dB", 6.0f},
+            {"band.2.attack_ms", 8.0f},
+            {"band.2.release_ms", 80.0f},
+            {"band.2.mix_pct", 100.0f},
+        }
+    });
+
+    // Preset 3: Vocal (150/1.5k Hz for vocals)
+    factoryPresets.push_back(PresetConfig{
+        "Vocal",
+        {
+            {"xover.1.Hz", 150.0f},
+            {"band.1.threshold_dB", -22.0f},
+            {"band.1.ratio", 2.0f},
+            {"band.1.knee_dB", 8.0f},
+            {"band.1.attack_ms", 20.0f},
+            {"band.1.release_ms", 140.0f},
+            {"band.1.mix_pct", 100.0f},
+            {"band.2.threshold_dB", -18.0f},
+            {"band.2.ratio", 3.0f},
+            {"band.2.knee_dB", 6.0f},
+            {"band.2.attack_ms", 10.0f},
+            {"band.2.release_ms", 110.0f},
+            {"band.2.mix_pct", 100.0f},
+        }
+    });
+
+    // Preset 4: Mastering Gentle (conservative settings)
+    factoryPresets.push_back(PresetConfig{
+        "Mastering Gentle",
+        {
+            {"xover.1.Hz", 200.0f},
+            {"band.1.threshold_dB", -20.0f},
+            {"band.1.ratio", 1.2f},
+            {"band.1.knee_dB", 10.0f},
+            {"band.1.attack_ms", 50.0f},
+            {"band.1.release_ms", 200.0f},
+            {"band.1.mix_pct", 100.0f},
+            {"band.2.threshold_dB", -18.0f},
+            {"band.2.ratio", 1.1f},
+            {"band.2.knee_dB", 12.0f},
+            {"band.2.attack_ms", 40.0f},
+            {"band.2.release_ms", 180.0f},
+            {"band.2.mix_pct", 100.0f},
+        }
+    });
+}
+
+void HungryGhostMultibandCompressorAudioProcessor::loadPreset(const PresetConfig& preset)
+{
+    for (const auto& [paramId, value] : preset.parameters)
+    {
+        if (auto* param = apvts.getRawParameterValue(paramId))
+        {
+            param->store(value);
+        }
+    }
+}
 
 bool HungryGhostMultibandCompressorAudioProcessor::isBusesLayoutSupported(const BusesLayout& layouts) const
 {
@@ -47,13 +144,23 @@ void HungryGhostMultibandCompressorAudioProcessor::ensureBandBuffers(int numChan
 {
     const int C = juce::jmax(2, numChannels);
     const int N = juce::jmax(1, numSamples);
+    const int numBands = juce::jmax(1, bandCount);
+
+    // Ensure dry and processed buffers for each band
+    if ((int)bandDry.size() != numBands)
+        bandDry.resize((size_t) numBands);
+    if ((int)bandProc.size() != numBands)
+        bandProc.resize((size_t) numBands);
+
+    // Resize each band buffer
     auto ensure = [&](juce::AudioBuffer<float>& b)
     {
         if (b.getNumChannels() != C || b.getNumSamples() < N)
             b.setSize(C, N, false, true, true);
     };
-    ensure(bandLowDry); ensure(bandHighDry);
-    ensure(bandLowProc); ensure(bandHighProc);
+
+    for (auto& b : bandDry) ensure(b);
+    for (auto& b : bandProc) ensure(b);
 }
 
 void HungryGhostMultibandCompressorAudioProcessor::prepareToPlay(double sr, int samplesPerBlockExpected)
@@ -66,16 +173,19 @@ void HungryGhostMultibandCompressorAudioProcessor::prepareToPlay(double sr, int 
     reportedLatency.store(msToSamples(la, sr));
     setLatencySamples(reportedLatency.load());
 
-    // Prepare DSP components for 2-band M1
+    // Prepare DSP components for N-band support
     splitter.reset(new hgmbc::BandSplitterIIR());
     splitter->prepare(sr, getTotalNumInputChannels());
 
-    compLow.reset(new hgmbc::CompressorBand());
-    compHigh.reset(new hgmbc::CompressorBand());
-
+    // Initialize 6 compressor bands (will use 1-6 depending on bandCount parameter)
+    compressors.clear();
     const int maxLASamples = juce::jmax(1, msToSamples(20.0f, sr) + 64);
-    compLow->prepare(sr, getTotalNumInputChannels(), maxLASamples);
-    compHigh->prepare(sr, getTotalNumInputChannels(), maxLASamples);
+    for (int i = 0; i < 6; ++i)
+    {
+        auto comp = std::make_unique<hgmbc::CompressorBand>();
+        comp->prepare(sr, getTotalNumInputChannels(), maxLASamples);
+        compressors.push_back(std::move(comp));
+    }
 
     ensureBandBuffers(getTotalNumInputChannels(), samplesPerBlockExpected);
 
@@ -102,7 +212,16 @@ void HungryGhostMultibandCompressorAudioProcessor::processBlock(juce::AudioBuffe
     // Snapshot globals
     bandCount = (int) juce::jlimit(1.0f, 6.0f, apvts.getRawParameterValue("global.bandCount")->load());
     lookAheadMs = apvts.getRawParameterValue("global.lookAheadMs")->load();
-    splitConfig.fcHz = apvts.getRawParameterValue("xover.1.Hz")->load();
+
+    // Read N crossover frequencies
+    crossoverHz.clear();
+    for (int j = 1; j < bandCount; ++j)
+    {
+        const juce::String id = "xover." + juce::String(j) + ".Hz";
+        if (auto* p = apvts.getRawParameterValue(id))
+            crossoverHz.push_back(p->load());
+    }
+
 
     // Update latency
     const int laSamples = msToSamples(lookAheadMs, sampleRateHz);
@@ -114,11 +233,12 @@ void HungryGhostMultibandCompressorAudioProcessor::processBlock(juce::AudioBuffe
 
     // Ensure working buffers and update splitter cutoff
     ensureBandBuffers(numCh, numSmps);
-    splitter->setCrossoverHz(splitConfig.fcHz);
+    splitter->setCrossoverFrequencies(crossoverHz);
 
-    // Split into bands (copy input to dry bands for delta before processing)
-    bandLowDry.makeCopyOf(buffer, true);
-    bandHighDry.makeCopyOf(buffer, true);
+    // Split input into N bands using configured crossover frequencies
+    splitter->process(buffer, bandDry);
+    for (int b = 0; b < (int)bandDry.size(); ++b)
+        bandProc[b].makeCopyOf(bandDry[b], true);
 
     // Push PRE analyzer mono samples (decimated) from input
     if (analyzerFifoPre)
@@ -129,7 +249,7 @@ void HungryGhostMultibandCompressorAudioProcessor::processBlock(juce::AudioBuffe
         {
             if ((n % analyzerDecimate) == 0)
             {
-                const float m = 0.5f * (bandLowDry.getSample(0, n) + bandLowDry.getSample(juce::jmin(1, numCh-1), n));
+                const float m = 0.5f * (bandDry[0].getSample(0, n) + bandDry[0].getSample(juce::jmin(1, numCh-1), n));
                 int start1, size1, start2, size2;
                 analyzerFifoPre->prepareToWrite(1, start1, size1, start2, size2);
                 if (size1 > 0) { analyzerRingPre[(size_t) start1] = m; analyzerFifoPre->finishedWrite(1); ++pushed; }
@@ -138,88 +258,80 @@ void HungryGhostMultibandCompressorAudioProcessor::processBlock(juce::AudioBuffe
         }
     }
 
-    splitter->process(buffer, bandLowDry, bandHighDry);
 
-    // Configure per-band params from APVTS (bands 1 & 2)
-    hgmbc::CompressorBandParams p1, p2;
-    auto rp = [&](const juce::String& id){ return apvts.getRawParameterValue(id)->load(); };
-    p1.threshold_dB = rp("band.1.threshold_dB");
-    p1.ratio        = rp("band.1.ratio");
-    p1.knee_dB      = rp("band.1.knee_dB");
-    p1.attack_ms    = rp("band.1.attack_ms");
-    p1.release_ms   = rp("band.1.release_ms");
-    p1.mix_pct      = rp("band.1.mix_pct");
+    // Configure and process per-band params
+    auto rp = [&](const juce::String& id) {
+        if (auto* p = apvts.getRawParameterValue(id)) return p->load();
+        return 0.0f;
+    };
 
-    p2.threshold_dB = rp("band.2.threshold_dB");
-    p2.ratio        = rp("band.2.ratio");
-    p2.knee_dB      = rp("band.2.knee_dB");
-    p2.attack_ms    = rp("band.2.attack_ms");
-    p2.release_ms   = rp("band.2.release_ms");
-    p2.mix_pct      = rp("band.2.mix_pct");
-
-    compLow->setParams(p1);
-    compHigh->setParams(p2);
-    compLow->setLookaheadSamples(laSamples);
-    compHigh->setLookaheadSamples(laSamples);
-
-    // Process bands
-    bandLowProc.makeCopyOf(bandLowDry, true);
-    bandHighProc.makeCopyOf(bandHighDry, true);
-
-    if (!(bool) (apvts.getRawParameterValue("band.1.bypass")->load() > 0.5f))
-        compLow->process(bandLowProc);
-    if (!(bool) (apvts.getRawParameterValue("band.2.bypass")->load() > 0.5f))
-        compHigh->process(bandHighProc);
-
-    // Delta listen per band: replace processed with (dry - processed)
-    const bool delta1 = apvts.getRawParameterValue("band.1.delta")->load() > 0.5f;
-    const bool delta2 = apvts.getRawParameterValue("band.2.delta")->load() > 0.5f;
-    if (delta1)
+    for (int b = 0; b < bandCount && b < (int)compressors.size() && b < (int)bandProc.size(); ++b)
     {
-        for (int ch = 0; ch < numCh; ++ch)
+        const int bandNum = b + 1;
+        const juce::String pfx = "band." + juce::String(bandNum) + ".";
+
+        hgmbc::CompressorBandParams params;
+        params.threshold_dB = rp(pfx + "threshold_dB");
+        params.ratio = rp(pfx + "ratio");
+        params.knee_dB = rp(pfx + "knee_dB");
+        params.attack_ms = rp(pfx + "attack_ms");
+        params.release_ms = rp(pfx + "release_ms");
+        params.mix_pct = rp(pfx + "mix_pct");
+
+        compressors[b]->setParams(params);
+        compressors[b]->setLookaheadSamples(laSamples);
+
+        if (!(bool) (rp(pfx + "bypass") > 0.5f))
+            compressors[b]->process(bandProc[b]);
+
+        if (rp(pfx + "delta") > 0.5f)
         {
-            auto* dry = bandLowDry.getReadPointer(ch);
-            auto* wet = bandLowProc.getWritePointer(ch);
-            for (int n = 0; n < numSmps; ++n) wet[n] = dry[n] - wet[n];
+            for (int ch = 0; ch < numCh; ++ch)
+            {
+                const auto* dry = bandDry[b].getReadPointer(ch);
+                auto* wet = bandProc[b].getWritePointer(ch);
+                for (int n = 0; n < numSmps; ++n)
+                    wet[n] = dry[n] - wet[n];
+            }
         }
-    }
-    if (delta2)
-    {
-        for (int ch = 0; ch < numCh; ++ch)
-        {
-            auto* dry = bandHighDry.getReadPointer(ch);
-            auto* wet = bandHighProc.getWritePointer(ch);
-            for (int n = 0; n < numSmps; ++n) wet[n] = dry[n] - wet[n];
-        }
+
+        grBandDb[b].store(-compressors[b]->getCurrentGainDb());
     }
 
-    // Update GR meters (positive dB reduction)
-    grBandDb[0].store(-compLow->getCurrentGainDb());
-    grBandDb[1].store(-compHigh->getCurrentGainDb());
 
     // Solo logic
-    const bool solo1 = apvts.getRawParameterValue("band.1.solo")->load() > 0.5f;
-    const bool solo2 = apvts.getRawParameterValue("band.2.solo")->load() > 0.5f;
-
-    if (solo1 && !solo2)
+    int soloedBand = -1;
+    for (int b = 0; b < bandCount && b < 6; ++b)
     {
-        buffer.makeCopyOf(bandLowProc, true);
+        const juce::String id = "band." + juce::String(b + 1) + ".solo";
+        if (auto* p = apvts.getRawParameterValue(id))
+        {
+            if (p->load() > 0.5f)
+            {
+                soloedBand = b;
+                break;
+            }
+        }
     }
-    else if (solo2 && !solo1)
+
+    if (soloedBand >= 0)
     {
-        buffer.makeCopyOf(bandHighProc, true);
+        buffer.makeCopyOf(bandProc[soloedBand], true);
     }
     else
     {
-        // Sum processed bands into output
+        // Sum all processed bands into output
         buffer.clear();
         for (int ch = 0; ch < numCh; ++ch)
         {
             auto* out = buffer.getWritePointer(ch);
-            const float* l = bandLowProc.getReadPointer(ch);
-            const float* h = bandHighProc.getReadPointer(ch);
             for (int n = 0; n < numSmps; ++n)
-                out[n] = juce::jlimit(-2.0f, 2.0f, l[n] + h[n]);
+            {
+                float sum = 0.0f;
+                for (int b = 0; b < bandCount && b < (int)bandProc.size(); ++b)
+                    sum += bandProc[b].getSample(ch, n);
+                out[n] = juce::jlimit(-2.0f, 2.0f, sum);
+            }
         }
     }
 
@@ -345,10 +457,19 @@ HungryGhostMultibandCompressorAudioProcessor::createParameterLayout()
     ps.push_back(std::make_unique<AudioParameterBool>(ParameterID{"global.latencyCompensate", 1}, "Latency Compensate", true));
     ps.push_back(std::make_unique<AudioParameterFloat>(ParameterID{"global.outputTrim_dB", 1}, "Output Trim (dB)", NormalisableRange<float>(-24.0f, 24.0f, 0.01f, 0.5f), 0.0f));
 
-    // Crossovers (up to 5 for 6 bands) — start with one for M1 skeleton
-    ps.push_back(std::make_unique<AudioParameterFloat>(ParameterID{"xover.1.Hz", 1}, "Crossover 1 (Hz)", NormalisableRange<float>(20.0f, 20000.0f, 0.01f, 0.3f), 120.0f));
+    // Crossovers (up to 5 for 6 bands)
+    // Default crossover frequencies for 6-band configuration: Low/Mid/Mid2/High/Top
+    const float defaultCrossovers[5] = { 120.0f, 400.0f, 1200.0f, 4000.0f, 10000.0f };
+    for (int i = 1; i <= 5; ++i)
+    {
+        const juce::String id = "xover." + juce::String(i) + ".Hz";
+        ps.push_back(std::make_unique<AudioParameterFloat>(ParameterID{id, 1},
+            "Crossover " + juce::String(i) + " (Hz)",
+            NormalisableRange<float>(20.0f, 20000.0f, 0.01f, 0.3f),
+            defaultCrossovers[i - 1]));
+    }
 
-    // Per-band (define for 2 bands for M1 skeleton)
+    // Per-band parameters (define for all 6 bands)
     auto addBand = [&](int i)
     {
         const auto id = [i](const char* name){ return juce::String("band.") + juce::String(i) + "." + name; };
@@ -363,8 +484,9 @@ HungryGhostMultibandCompressorAudioProcessor::createParameterLayout()
         ps.push_back(std::make_unique<AudioParameterBool>(ParameterID{id("delta"), 1}, juce::String("Band ") + juce::String(i) + " Delta", false));
     };
 
-    addBand(1);
-    addBand(2);
+    // Add all 6 bands
+    for (int i = 1; i <= 6; ++i)
+        addBand(i);
 
     // ===== EQ bands (up to 8) =====
     auto hzRange = [](float lo, float hi){ NormalisableRange<float> r(lo, hi); r.setSkewForCentre(1000.0f); return r; };
@@ -392,6 +514,32 @@ juce::AudioProcessorEditor* HungryGhostMultibandCompressorAudioProcessor::create
 #else
     return new HungryGhostMultibandCompressorAudioProcessorEditor(*this);
 #endif
+}
+
+int HungryGhostMultibandCompressorAudioProcessor::getNumPrograms()
+{
+    return (int)factoryPresets.size();
+}
+
+int HungryGhostMultibandCompressorAudioProcessor::getCurrentProgram()
+{
+    return currentProgramIndex;
+}
+
+void HungryGhostMultibandCompressorAudioProcessor::setCurrentProgram(int index)
+{
+    if (index >= 0 && index < (int)factoryPresets.size())
+    {
+        currentProgramIndex = index;
+        loadPreset(factoryPresets[index]);
+    }
+}
+
+const juce::String HungryGhostMultibandCompressorAudioProcessor::getProgramName(int index)
+{
+    if (index >= 0 && index < (int)factoryPresets.size())
+        return factoryPresets[index].name;
+    return {};
 }
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
