@@ -9,6 +9,7 @@
 #include <vector>
 #include <array>
 #include <juce_dsp/juce_dsp.h>
+#include "dsp/BandSplitterIIR.h"
 
 //==============================================================================
 
@@ -64,6 +65,13 @@ private:
     float cachedCrossoverHz = 120.0f;
     int cachedOversamplingFactor = 1;
     float cachedLookAheadMs = 3.0f;
+
+    // Helper method to ensure band buffers are properly sized
+    void ensureBandBuffers(int numChannels, int numSamples);
+
+    // ===== STORY-MBL-002: Multiband Crossover System =====
+    std::unique_ptr<hgml::BandSplitterIIR> splitter;
+    std::vector<juce::AudioBuffer<float>> bandBuffers;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(HungryGhostMultibandLimiterAudioProcessor)
 };
