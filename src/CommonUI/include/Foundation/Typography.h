@@ -1,5 +1,6 @@
 #pragma once
 #include <juce_gui_extra/juce_gui_extra.h>
+#include <Styling/Theme.h>
 
 namespace ui { namespace foundation {
 

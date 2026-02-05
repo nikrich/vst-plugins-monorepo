@@ -47,6 +47,12 @@ public:
         float otherFillAlpha = 0.08f;    // translucent fill for non-selected bands
     };
 
+    MBCLineChart()
+    {
+        // Enable keyboard focus to support Delete/Backspace for removing decorative bands
+        setWantsKeyboardFocus(true);
+    }
+
     void setXRangeHz(float minHz, float maxHz) { xMinHz = juce::jmax(1.0f, minHz); xMaxHz = juce::jmax(xMinHz + 1.0f, maxHz); repaint(); }
     void setYRangeDb(float minDb, float maxDb) { yMinDb = minDb; yMaxDb = maxDb; repaint(); }
 
@@ -208,6 +214,9 @@ public:
         if (selected==0) startBand = bandL;
         else if (selected==1) startBand = bandR;
         else if (selected>=2 && (size_t)(selected-2) < decorBands.size()) startBand = decorBands[(size_t)(selected-2)];
+
+        // Grab keyboard focus when a node is selected (for delete key)
+        if (selected >= 0) grabKeyboardFocus();
     }
 
     void mouseDrag(const juce::MouseEvent& e) override
@@ -276,6 +285,32 @@ public:
             if (onDecorChanged) onDecorChanged((int)(selected-2), b.freqHz, b.gainDb, b.q);
         }
         repaint();
+    }
+
+    bool keyPressed(const juce::KeyPress& key) override
+    {
+        // Delete/Backspace removes selected decorative band (not primaries)
+        // Primary bands (indices 0-1) cannot be deleted; only decorative bands (index >= 2) can be removed
+        if (selected >= 2 && (size_t)(selected-2) < decorBands.size())
+        {
+            if (key == juce::KeyPress::deleteKey || key == juce::KeyPress::backspaceKey)
+            {
+                const int decorIndex = selected - 2;
+                decorBands.erase(decorBands.begin() + decorIndex);
+
+                // Update selection: when removing the last band, select the new last band
+                // When removing an earlier band, the selection implicitly points to the shifted band
+                if (decorBands.empty())
+                    selected = -1;
+                else if (decorIndex >= (int)decorBands.size())
+                    selected = (int)decorBands.size() + 1; // select last decorative band
+
+                if (onSelectionChanged) onSelectionChanged(selected);
+                repaint();
+                return true;
+            }
+        }
+        return false;
     }
 
 private:

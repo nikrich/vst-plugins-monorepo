@@ -1,5 +1,6 @@
 #include "PluginEditor.h"
 #include "PluginProcessor.h"
+#include <Foundation/Typography.h>
 
 using namespace ui::layout;
 
@@ -14,8 +15,7 @@ HungryGhostReverbAudioProcessorEditor::HungryGhostReverbAudioProcessorEditor(Hun
 
     // Mode selector
     modeLabel.setText("Mode", juce::dontSendNotification);
-    modeLabel.setJustificationType(juce::Justification::centred);
-    modeLabel.setColour(juce::Label::textColourId, Style::theme().text);
+    ui::foundation::Typography::apply(modeLabel, ui::foundation::Typography::Style::Subtitle);
     addAndMakeVisible(modeLabel);
 
     modeBox.addItemList({ "Hall", "Room", "Plate", "Ambience" }, 1);

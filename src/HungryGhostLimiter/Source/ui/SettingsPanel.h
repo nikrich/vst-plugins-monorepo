@@ -2,6 +2,7 @@
 #include <juce_gui_extra/juce_gui_extra.h>
 #include "Layout.h"
 #include <Styling/Theme.h>
+#include <Foundation/Typography.h>
 
 class SettingsPanel : public juce::Component
 {
@@ -12,15 +13,14 @@ public:
         setAlwaysOnTop(true);
 
         titleLabel.setText("SETTINGS", juce::dontSendNotification);
-        titleLabel.setJustificationType(juce::Justification::centred);
-        titleLabel.setFont(juce::Font(juce::FontOptions(16.0f, juce::Font::bold)));
-        titleLabel.setColour(juce::Label::textColourId, juce::Colours::white);
+        ui::foundation::Typography::apply(titleLabel, ui::foundation::Typography::Style::Title);
         addAndMakeVisible(titleLabel);
 
         apiKeyLabel.setText("API Key", juce::dontSendNotification);
-        apiKeyLabel.setJustificationType(juce::Justification::centredLeft);
-        apiKeyLabel.setFont(juce::Font(juce::FontOptions(13.0f)));
-        apiKeyLabel.setColour(juce::Label::textColourId, juce::Colours::white.withAlpha(0.9f));
+        ui::foundation::Typography::apply(apiKeyLabel,
+                                         ui::foundation::Typography::Style::Subtitle,
+                                         juce::Colours::white.withAlpha(0.9f),
+                                         juce::Justification::centredLeft);
         addAndMakeVisible(apiKeyLabel);
 
         apiKeyInput.setMultiLine(false);
@@ -36,9 +36,9 @@ public:
         addAndMakeVisible(apiKeyInput);
 
         errorLabel.setText("", juce::dontSendNotification);
-        errorLabel.setJustificationType(juce::Justification::centred);
-        errorLabel.setFont(juce::Font(juce::FontOptions(12.0f)));
-        errorLabel.setColour(juce::Label::textColourId, juce::Colour(0xFFFF6B6B));
+        ui::foundation::Typography::apply(errorLabel,
+                                         ui::foundation::Typography::Style::Body,
+                                         juce::Colour(0xFFFF6B6B));
         addAndMakeVisible(errorLabel);
 
         saveButton.setButtonText("Save");
