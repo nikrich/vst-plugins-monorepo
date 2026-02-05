@@ -233,14 +233,15 @@ void HungryGhostMultibandCompressorAudioProcessor::processBlock(juce::AudioBuffe
 
     // Ensure working buffers and update splitter cutoff
     ensureBandBuffers(numCh, numSmps);
-    splitter->setCrossoverFrequencies(crossoverHz);
 
-    // Split input into N bands using configured crossover frequencies
-    splitter->process(buffer, bandDry);
-    for (int b = 0; b < (int)bandDry.size(); ++b)
-        bandProc[b].makeCopyOf(bandDry[b], true);
+    // Extract first crossover frequency for 2-band split (band.1 is low, band.2 is high)
+    // For M1: single crossover, bandDry[0]=low, bandDry[1]=high
+    float fcHz = 120.0f;
+    if (!crossoverHz.empty())
+        fcHz = crossoverHz[0];
+    splitter->setCrossoverHz(fcHz);
 
-    // Push PRE analyzer mono samples (decimated) from input
+    // Push PRE analyzer mono samples (decimated) from input BEFORE splitting
     if (analyzerFifoPre)
     {
         int write = analyzerFifoPre->getFreeSpace();
@@ -249,7 +250,7 @@ void HungryGhostMultibandCompressorAudioProcessor::processBlock(juce::AudioBuffe
         {
             if ((n % analyzerDecimate) == 0)
             {
-                const float m = 0.5f * (bandDry[0].getSample(0, n) + bandDry[0].getSample(juce::jmin(1, numCh-1), n));
+                const float m = 0.5f * (buffer.getSample(0, n) + buffer.getSample(juce::jmin(1, numCh-1), n));
                 int start1, size1, start2, size2;
                 analyzerFifoPre->prepareToWrite(1, start1, size1, start2, size2);
                 if (size1 > 0) { analyzerRingPre[(size_t) start1] = m; analyzerFifoPre->finishedWrite(1); ++pushed; }
@@ -257,6 +258,17 @@ void HungryGhostMultibandCompressorAudioProcessor::processBlock(juce::AudioBuffe
             }
         }
     }
+
+    // Split input into 2 bands using the 2-band splitter API
+    // Ensure vectors have exactly 2 elements for M1
+    if ((int)bandDry.size() != 2)
+        bandDry.resize(2);
+    if ((int)bandProc.size() != 2)
+        bandProc.resize(2);
+
+    splitter->process(buffer, bandDry[0], bandDry[1]);
+    for (int b = 0; b < 2; ++b)
+        bandProc[b].makeCopyOf(bandDry[b], true);
 
 
     // Configure and process per-band params
