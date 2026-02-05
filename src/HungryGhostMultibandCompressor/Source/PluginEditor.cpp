@@ -42,6 +42,7 @@ HungryGhostMultibandCompressorAudioProcessorEditor::HungryGhostMultibandCompress
 
     // Enable overlay on the spectrum chart so it mimics Pro-Q aesthetics
     chart->enableOverlay(true);
+    chart->setShowPrimaries(true); // Show the two primary compressor bands as interactive nodes
 
     // Configure bottom knobs (filmstrip-backed if available)
     auto setupRotary = [&](juce::Slider& s)
