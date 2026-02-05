@@ -270,6 +270,20 @@ void HungryGhostMultibandCompressorAudioProcessor::processBlock(juce::AudioBuffe
     for (int b = 0; b < 2; ++b)
         bandProc[b].makeCopyOf(bandDry[b], true);
 
+    // Compute meter data
+    float masterPeak = 0.0f;
+    for (int ch = 0; ch < numCh; ++ch)
+        masterPeak = juce::jmax(masterPeak, buffer.getMagnitude(ch, 0, numSmps));
+    masterInputDb.store(juce::Decibels::gainToDecibels(juce::jmax(masterPeak, 1.0e-6f)));
+
+    auto computeDb = [](const juce::AudioBuffer<float>& buf) -> float {
+        float peak = 0.0f;
+        for (int ch = 0; ch < buf.getNumChannels(); ++ch)
+            peak = juce::jmax(peak, buf.getMagnitude(ch, 0, buf.getNumSamples()));
+        return juce::Decibels::gainToDecibels(juce::jmax(peak, 1.0e-6f));
+    };
+    for (int b = 0; b < 2; ++b)
+        bandInputDb[b].store(computeDb(bandDry[b]));
 
     // Configure and process per-band params
     auto rp = [&](const juce::String& id) {
@@ -308,6 +322,7 @@ void HungryGhostMultibandCompressorAudioProcessor::processBlock(juce::AudioBuffe
         }
 
         grBandDb[b].store(-compressors[b]->getCurrentGainDb());
+        bandOutputDb[b].store(computeDb(bandProc[b]));
     }
 
 
@@ -346,6 +361,12 @@ void HungryGhostMultibandCompressorAudioProcessor::processBlock(juce::AudioBuffe
             }
         }
     }
+
+    // Compute master output level
+    float masterOutPeak = 0.0f;
+    for (int ch = 0; ch < numCh; ++ch)
+        masterOutPeak = juce::jmax(masterOutPeak, buffer.getMagnitude(ch, 0, numSmps));
+    masterOutputDb.store(juce::Decibels::gainToDecibels(juce::jmax(masterOutPeak, 1.0e-6f)));
 
     // ===== Parallel EQ stage (after compressor) =====
     {

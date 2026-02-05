@@ -68,6 +68,10 @@ private:
     int analyzerDecimate = 4;
 
     std::atomic<float> grBandDb[6] { 0,0,0,0,0,0 };
+    std::atomic<float> bandInputDb[6] { -60.0f, -60.0f, -60.0f, -60.0f, -60.0f, -60.0f };
+    std::atomic<float> bandOutputDb[6] { -60.0f, -60.0f, -60.0f, -60.0f, -60.0f, -60.0f };
+    std::atomic<float> masterInputDb { -60.0f };
+    std::atomic<float> masterOutputDb { -60.0f };
 
 public:
     // Pull analyzer samples into dst (returns count)
@@ -75,6 +79,10 @@ public:
     int readAnalyzerPost(float* dst, int maxSamples);
     int getAnalyzerDecimate() const { return analyzerDecimate; }
     float getBandGrDb(int index) const { if (index < 0 || index >= 6) return 0.0f; return grBandDb[index].load(); }
+    float getBandInputDb(int index) const { if (index < 0 || index >= 6) return -60.0f; return bandInputDb[index].load(); }
+    float getBandOutputDb(int index) const { if (index < 0 || index >= 6) return -60.0f; return bandOutputDb[index].load(); }
+    float getMasterInputDb() const { return masterInputDb.load(); }
+    float getMasterOutputDb() const { return masterOutputDb.load(); }
 
     // ====== N-band DSP graph state ======
     // Working buffers for N bands (dry = copy of input per band before compression)
