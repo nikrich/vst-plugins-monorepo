@@ -28,6 +28,19 @@ A transparent, modern true‑peak limiter focused on punchy, artifact‑free lou
 
 For full signal flow, parameters, and integration notes, see docs/readme/spectral-limiter.md.
 
+### Multiband Limiter
+A frequency-aware, mastering-grade multiband limiter extending true-peak technology with per-band control.
+
+- Complementary LR4 crossover for smooth frequency splits
+- Independent limiting on each band: threshold, release, makeup gain
+- Flexible architecture ready for future N-band expansion (M1 ships with 2 bands)
+- Optional external sidechain for creative or corrective ducking
+- Oversampling support (1×, 2×, 4×) for true-peak safety
+- Transparent limiting to prevent cross-band pumping
+
+For architecture details, parameters, and integration notes, see docs/readme/hungry-ghost-multiband-limiter.md.
+
 ## Documentation
 - Astral Halls detailed README: docs/readme/astral-halls.md
 - Spectral Limiter detailed README: docs/readme/spectral-limiter.md
+- Multiband Limiter detailed README: docs/readme/hungry-ghost-multiband-limiter.md
