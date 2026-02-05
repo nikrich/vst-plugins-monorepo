@@ -48,6 +48,7 @@ public:
         apiKeyInput.setColour(juce::TextEditor::outlineColourId, juce::Colours::white.withAlpha(0.2f));
         apiKeyInput.setColour(juce::TextEditor::focusedOutlineColourId, Style::theme().accent1);
         apiKeyInput.setColour(juce::TextEditor::textColourId, juce::Colours::white);
+        apiKeyInput.onTextChange = [this]() { updateValidationState(); };
         addAndMakeVisible(apiKeyInput);
 
         errorLabel.setText("", juce::dontSendNotification);
@@ -214,6 +215,7 @@ private:
             if (storedKey.isNotEmpty())
                 apiKeyInput.setText(storedKey, juce::dontSendNotification);
         }
+        updateValidationState();
     }
 
     void toggleTheme()
@@ -249,6 +251,37 @@ private:
             auto variant = (themeStr == "light") ? Style::Variant::Light : Style::Variant::Dark;
             Style::setVariant(variant);
             themeToggle.setToggleState(variant == Style::Variant::Light, juce::dontSendNotification);
+        }
+    }
+
+
+    void updateValidationState()
+    {
+        bool isValid = getApiKey().isNotEmpty();
+
+        // Update outline color based on validation state
+        if (isValid)
+        {
+            // Valid: green color
+            apiKeyInput.setColour(juce::TextEditor::outlineColourId, juce::Colour(0xFF4CAF50).withAlpha(0.8f));
+        }
+        else
+        {
+            // Invalid: subtle neutral color
+            apiKeyInput.setColour(juce::TextEditor::outlineColourId, juce::Colours::white.withAlpha(0.2f));
+        }
+
+        // Update save button state
+        saveButton.setEnabled(isValid);
+
+        // Update button appearance when disabled
+        if (!isValid)
+        {
+            saveButton.setColour(juce::TextButton::buttonColourId, juce::Colours::grey.withAlpha(0.5f));
+        }
+        else
+        {
+            saveButton.setColour(juce::TextButton::buttonColourId, Style::theme().accent2);
         }
     }
 
