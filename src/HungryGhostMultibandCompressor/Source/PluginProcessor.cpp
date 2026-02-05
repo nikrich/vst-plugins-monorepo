@@ -102,7 +102,16 @@ void HungryGhostMultibandCompressorAudioProcessor::processBlock(juce::AudioBuffe
     // Snapshot globals
     bandCount = (int) juce::jlimit(1.0f, 6.0f, apvts.getRawParameterValue("global.bandCount")->load());
     lookAheadMs = apvts.getRawParameterValue("global.lookAheadMs")->load();
-    splitConfig.fcHz = apvts.getRawParameterValue("xover.1.Hz")->load();
+
+    // Read N crossover frequencies
+    crossoverHz.clear();
+    for (int j = 1; j < bandCount; ++j)
+    {
+        const juce::String id = "xover." + juce::String(j) + ".Hz";
+        if (auto* p = apvts.getRawParameterValue(id))
+            crossoverHz.push_back(p->load());
+    }
+
 
     // Update latency
     const int laSamples = msToSamples(lookAheadMs, sampleRateHz);
@@ -114,11 +123,14 @@ void HungryGhostMultibandCompressorAudioProcessor::processBlock(juce::AudioBuffe
 
     // Ensure working buffers and update splitter cutoff
     ensureBandBuffers(numCh, numSmps);
-    splitter->setCrossoverHz(splitConfig.fcHz);
+    splitter->setCrossoverFrequencies(crossoverHz);
 
     // Split into bands (copy input to dry bands for delta before processing)
-    bandLowDry.makeCopyOf(buffer, true);
-    bandHighDry.makeCopyOf(buffer, true);
+    // Split into N bands
+    splitter->process(buffer, bandDry);
+    for (int b = 0; b < (int)bandDry.size(); ++b)
+        bandProc[b].makeCopyOf(bandDry[b], true);
+
 
     // Push PRE analyzer mono samples (decimated) from input
     if (analyzerFifoPre)
@@ -129,7 +141,7 @@ void HungryGhostMultibandCompressorAudioProcessor::processBlock(juce::AudioBuffe
         {
             if ((n % analyzerDecimate) == 0)
             {
-                const float m = 0.5f * (bandLowDry.getSample(0, n) + bandLowDry.getSample(juce::jmin(1, numCh-1), n));
+                const float m = 0.5f * (bandDry[0].getSample(0, n) + bandDry[0].getSample(juce::jmin(1, numCh-1), n));
                 int start1, size1, start2, size2;
                 analyzerFifoPre->prepareToWrite(1, start1, size1, start2, size2);
                 if (size1 > 0) { analyzerRingPre[(size_t) start1] = m; analyzerFifoPre->finishedWrite(1); ++pushed; }
@@ -138,74 +150,89 @@ void HungryGhostMultibandCompressorAudioProcessor::processBlock(juce::AudioBuffe
         }
     }
 
-    splitter->process(buffer, bandLowDry, bandHighDry);
 
     // Configure per-band params from APVTS (bands 1 & 2)
-    hgmbc::CompressorBandParams p1, p2;
-    auto rp = [&](const juce::String& id){ return apvts.getRawParameterValue(id)->load(); };
-    p1.threshold_dB = rp("band.1.threshold_dB");
-    p1.ratio        = rp("band.1.ratio");
-    p1.knee_dB      = rp("band.1.knee_dB");
-    p1.attack_ms    = rp("band.1.attack_ms");
-    p1.release_ms   = rp("band.1.release_ms");
-    p1.mix_pct      = rp("band.1.mix_pct");
 
-    p2.threshold_dB = rp("band.2.threshold_dB");
-    p2.ratio        = rp("band.2.ratio");
-    p2.knee_dB      = rp("band.2.knee_dB");
-    p2.attack_ms    = rp("band.2.attack_ms");
-    p2.release_ms   = rp("band.2.release_ms");
-    p2.mix_pct      = rp("band.2.mix_pct");
+    // Configure and process per-band params
+    auto rp = [&](const juce::String& id) {
+        if (auto* p = apvts.getRawParameterValue(id)) return p->load();
+        return 0.0f;
+    };
 
-    compLow->setParams(p1);
-    compHigh->setParams(p2);
-    compLow->setLookaheadSamples(laSamples);
-    compHigh->setLookaheadSamples(laSamples);
+    for (int b = 0; b < bandCount && b < (int)compressors.size() && b < (int)bandProc.size(); ++b)
+    {
+        const int bandNum = b + 1;
+        const juce::String pfx = "band." + juce::String(bandNum) + ".";
+
+        hgmbc::CompressorBandParams params;
+        params.threshold_dB = rp(pfx + "threshold_dB");
+        params.ratio = rp(pfx + "ratio");
+        params.knee_dB = rp(pfx + "knee_dB");
+        params.attack_ms = rp(pfx + "attack_ms");
+        params.release_ms = rp(pfx + "release_ms");
+        params.mix_pct = rp(pfx + "mix_pct");
+
+        compressors[b]->setParams(params);
+        compressors[b]->setLookaheadSamples(laSamples);
+
+        if (!(bool) (rp(pfx + "bypass") > 0.5f))
+            compressors[b]->process(bandProc[b]);
+
+        if (rp(pfx + "delta") > 0.5f)
+        {
+            for (int ch = 0; ch < numCh; ++ch)
+            {
+                const auto* dry = bandDry[b].getReadPointer(ch);
+                auto* wet = bandProc[b].getWritePointer(ch);
+                for (int n = 0; n < numSmps; ++n)
+                    wet[n] = dry[n] - wet[n];
+            }
+        }
+
+        grBandDb[b].store(-compressors[b]->getCurrentGainDb());
+    }
+
 
     // Process bands
-    bandLowProc.makeCopyOf(bandLowDry, true);
-    bandHighProc.makeCopyOf(bandHighDry, true);
 
-    if (!(bool) (apvts.getRawParameterValue("band.1.bypass")->load() > 0.5f))
-        compLow->process(bandLowProc);
-    if (!(bool) (apvts.getRawParameterValue("band.2.bypass")->load() > 0.5f))
-        compHigh->process(bandHighProc);
 
     // Delta listen per band: replace processed with (dry - processed)
-    const bool delta1 = apvts.getRawParameterValue("band.1.delta")->load() > 0.5f;
-    const bool delta2 = apvts.getRawParameterValue("band.2.delta")->load() > 0.5f;
-    if (delta1)
-    {
-        for (int ch = 0; ch < numCh; ++ch)
-        {
-            auto* dry = bandLowDry.getReadPointer(ch);
-            auto* wet = bandLowProc.getWritePointer(ch);
-            for (int n = 0; n < numSmps; ++n) wet[n] = dry[n] - wet[n];
-        }
-    }
-    if (delta2)
-    {
-        for (int ch = 0; ch < numCh; ++ch)
-        {
-            auto* dry = bandHighDry.getReadPointer(ch);
-            auto* wet = bandHighProc.getWritePointer(ch);
-            for (int n = 0; n < numSmps; ++n) wet[n] = dry[n] - wet[n];
-        }
-    }
-
-    // Update GR meters (positive dB reduction)
-    grBandDb[0].store(-compLow->getCurrentGainDb());
-    grBandDb[1].store(-compHigh->getCurrentGainDb());
 
     // Solo logic
-    const bool solo1 = apvts.getRawParameterValue("band.1.solo")->load() > 0.5f;
-    const bool solo2 = apvts.getRawParameterValue("band.2.solo")->load() > 0.5f;
-
-    if (solo1 && !solo2)
+    int soloedBand = -1;
+    for (int b = 0; b < bandCount && b < 6; ++b)
     {
-        buffer.makeCopyOf(bandLowProc, true);
+        const juce::String id = "band." + juce::String(b + 1) + ".solo";
+        if (auto* p = apvts.getRawParameterValue(id))
+        {
+            if (p->load() > 0.5f)
+            {
+                soloedBand = b;
+                break;
+            }
+        }
     }
-    else if (solo2 && !solo1)
+
+    if (soloedBand >= 0)
+    {
+        buffer.makeCopyOf(bandProc[soloedBand], true);
+    }
+    else
+    {
+        // Sum all processed bands into output
+        buffer.clear();
+        for (int ch = 0; ch < numCh; ++ch)
+        {
+            auto* out = buffer.getWritePointer(ch);
+            for (int n = 0; n < numSmps; ++n)
+            {
+                float sum = 0.0f;
+                for (int b = 0; b < bandCount && b < (int)bandProc.size(); ++b)
+                    sum += bandProc[b].getSample(ch, n);
+                out[n] = juce::jlimit(-2.0f, 2.0f, sum);
+            }
+        }
+    }
     {
         buffer.makeCopyOf(bandHighProc, true);
     }
