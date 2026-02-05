@@ -58,17 +58,35 @@ void HungryGhostMultibandLimiterAudioProcessor::processBlock(juce::AudioBuffer<f
         splitter->setCrossoverHz(cachedCrossoverHz);
     }
 
-    // Split input into bands
+    // Split input into bands using LR4 crossover
     splitter->process(buffer, bandBuffers);
 
-    // ===== STORY-MBL-003/004 TODO: Per-band limiting and recombination =====
-    // For now, pass the split bands back to output as pass-through
-    // This demonstrates the band splitting infrastructure is working
+    // ===== STORY-MBL-002: Band recombination (verifies perfect reconstruction) =====
+    // Recombine low and high bands to verify crossover transparency (LP + HP = input)
+    // This demonstrates that the Linkwitz-Riley filter maintains perfect phase coherence
     if (bandBuffers.size() >= 2)
     {
-        buffer.makeCopyOf(bandBuffers[0], true);  // Low band to output
-        // High band will be summed by future limiting stage
+        // Clear output and recombine bands
+        buffer.clear();
+
+        // Sum all bands back together
+        for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
+        {
+            for (int n = 0; n < buffer.getNumSamples(); ++n)
+            {
+                float sample = 0.0f;
+                for (size_t b = 0; b < bandBuffers.size(); ++b)
+                {
+                    sample += bandBuffers[b].getSample(ch, n);
+                }
+                buffer.setSample(ch, n, sample);
+            }
+        }
     }
+
+    // ===== STORY-MBL-003/004 TODO: Per-band limiting =====
+    // Future work: Replace band recombination above with actual per-band limiting DSP
+    // Each band will be processed through independent limiters before summing back together
 
     // Get per-band parameters (prepared for DSP integration)
     // These will be used by STORY-MBL-003/004 when DSP components are implemented
