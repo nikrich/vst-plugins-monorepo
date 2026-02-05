@@ -84,13 +84,51 @@ void HungryGhostMultibandLimiterAudioProcessor::processBlock(juce::AudioBuffer<f
     for (size_t b = 0; b < bandBuffers.size() && b < 6; ++b)
         bandInputDb[b].store(computeDb(bandBuffers[b]));
 
-    // ===== STORY-MBL-003/004 TODO: Per-band limiting and recombination =====
-    // For now, pass the split bands back to output as pass-through
-    // This demonstrates the band splitting infrastructure is working
-    if (bandBuffers.size() >= 2)
+    // ===== STORY-MBL-003: Per-band limiting and recombination =====
+    // Apply limiting to each band
+    for (int b = 0; b < juce::jmin((int)bandBuffers.size(), (int)limiters.size()); ++b)
     {
-        buffer.makeCopyOf(bandBuffers[0], true);  // Low band to output
-        // High band will be summed by future limiting stage
+        // Read parameters for this band from APVTS
+        const auto id = [b](const char* name){ return juce::String("band.") + juce::String(b + 1) + "." + name; };
+
+        float thresholdDb = apvts.getRawParameterValue(id("threshold_dB"))->load();
+        float attackMs = apvts.getRawParameterValue(id("attack_ms"))->load();
+        float releaseMs = apvts.getRawParameterValue(id("release_ms"))->load();
+        float mixPct = apvts.getRawParameterValue(id("mix_pct"))->load();
+        bool bypass = *apvts.getRawParameterValue(id("bypass")) > 0.5f;
+
+        // Configure limiter with current parameters
+        hgml::LimiterBandParams params;
+        params.thresholdDb = thresholdDb;
+        params.attackMs = attackMs;
+        params.releaseMs = releaseMs;
+        params.mixPct = mixPct;
+        params.bypass = bypass;
+        limiters[b].setParams(params);
+
+        // Process the band through the limiter
+        float maxGrDb = limiters[b].processBlock(bandBuffers[b]);
+
+        // Store gain reduction for metering
+        if (b < 6)
+            bandGainReductionDb[b].store(maxGrDb);
+    }
+
+    // Recombine limited bands back to output
+    // Start with low band
+    if (bandBuffers.size() >= 1)
+        buffer.makeCopyOf(bandBuffers[0], true);
+
+    // Add high band(s) to output
+    for (size_t b = 1; b < bandBuffers.size(); ++b)
+    {
+        for (int ch = 0; ch < juce::jmin(buffer.getNumChannels(), bandBuffers[b].getNumChannels()); ++ch)
+        {
+            float* outData = buffer.getWritePointer(ch);
+            const float* inData = bandBuffers[b].getReadPointer(ch);
+            for (int n = 0; n < buffer.getNumSamples(); ++n)
+                outData[n] += inData[n];
+        }
     }
 
     // ===== STORY-MBL-007: Compute band output levels =====
@@ -103,39 +141,8 @@ void HungryGhostMultibandLimiterAudioProcessor::processBlock(juce::AudioBuffer<f
         masterOutPeak = juce::jmax(masterOutPeak, buffer.getMagnitude(ch, 0, buffer.getNumSamples()));
     masterOutputDb.store(juce::Decibels::gainToDecibels(juce::jmax(masterOutPeak, 1.0e-6f)));
 
-    // Get per-band parameters (prepared for DSP integration)
-    // These will be used by STORY-MBL-003/004 when DSP components are implemented
-    for (int b = 0; b < juce::jmin(cachedBandCount, 8); ++b)
-    {
-        const auto id = [b](const char* name){ return juce::String("band.") + juce::String(b + 1) + "." + name; };
-
-        float thresholdDb = apvts.getRawParameterValue(id("threshold_dB"))->load();
-        float attackMs = apvts.getRawParameterValue(id("attack_ms"))->load();
-        float releaseMs = apvts.getRawParameterValue(id("release_ms"))->load();
-        float mixPct = apvts.getRawParameterValue(id("mix_pct"))->load();
-        bool bypass = *apvts.getRawParameterValue(id("bypass")) > 0.5f;
-        bool solo = *apvts.getRawParameterValue(id("solo")) > 0.5f;
-        bool delta = *apvts.getRawParameterValue(id("delta")) > 0.5f;
-
-        // Store parameters for use by DSP components (to be implemented)
-        (void)thresholdDb;
-        (void)attackMs;
-        (void)releaseMs;
-        (void)mixPct;
-        (void)bypass;
-        (void)solo;
-        (void)delta;
-    }
-
-    // Get global parameters
-    float outputTrimDb = apvts.getRawParameterValue("global.outputTrim_dB")->load();
-    bool latencyCompensate = *apvts.getRawParameterValue("global.latencyCompensate") > 0.5f;
-    int crossoverMode = (int)*apvts.getRawParameterValue("global.crossoverMode");
-
-    // TODO: Output trim and latency compensation (STORY-MBL-004)
-    (void)outputTrimDb;
-    (void)latencyCompensate;
-    (void)crossoverMode;
+    // TODO: STORY-MBL-004 - Output trim and latency compensation
+    // TODO: Handle solo/delta modes for per-band output routing
 }
 
 //==============================================================================
