@@ -343,13 +343,16 @@ private:
     {
         g.setColour(style.grid);
         g.drawRect(a);
-        // Draw a few log-f verticals (decades from 20..20k)
+
+        // Draw frequency vertical lines (log scale from 20..20k)
         const float marks[] = {20.f,50.f,100.f,200.f,500.f,1000.f,2000.f,5000.f,10000.f,20000.f};
         g.setFont(11.0f);
         for (float f : marks) if (f >= xMinHz && f <= xMaxHz)
         {
             const float x = xToPx(f,a);
+            // Thicker line for 1kHz (decade marker), thinner for others
             g.drawLine(x, a.getY(), x, a.getBottom(), (f==1000.f?1.2f:0.6f));
+
             // Frequency labels at the bottom
             juce::String label;
             if (f >= 1000.f) label = juce::String((int)(f/1000.f)) + "k";
@@ -358,24 +361,32 @@ private:
             g.drawFittedText(label, juce::Rectangle<int>((int)x-18, (int)a.getBottom()-16, 36, 14), juce::Justification::centred, 1);
             g.setColour(style.grid);
         }
-        // Horizontal dB lines every 6 dB (0 dB in yellow and thicker)
+
+        // Horizontal dB lines and Y-axis labels
+        g.setFont(10.0f);
         for (float y = std::ceil(yMinDb/6.f)*6.f; y <= yMaxDb; y+=6.f)
         {
             const bool zero = juce::approximatelyEqual(y, 0.0f);
+            const float lineY = yToPx(y, a);
+
+            // Draw grid line: 0 dB in yellow and thicker, others in grid color
             g.setColour(zero ? style.combinedCurve.withAlpha(0.7f) : style.grid);
-            g.drawLine(a.getX(), yToPx(y,a), a.getRight(), yToPx(y,a), zero ? 1.8f : (y==0.f?1.2f:0.6f));
+            g.drawLine(a.getX(), lineY, a.getRight(), lineY, zero ? 1.8f : 0.6f);
+
+            // Add Y-axis label for each gridline (left side)
+            g.setColour(juce::Colours::white.withAlpha(zero ? 0.70f : 0.50f));
+            juce::String dbLabel = (y > 0 ? "+" : "") + juce::String(y, 0) + " dB";
+            // Position label: -55 pixels left of chart area, 10 pixels tall, right-justified
+            g.drawFittedText(dbLabel, juce::Rectangle<int>((int)a.getX()-55, (int)lineY-5, 50, 10), juce::Justification::right, 1);
         }
 
-        // Explicit ±12 dB markers (dashed)
+        // Explicit ±12 dB markers (dashed) for emphasis
         auto drawDbMarker = [&](float dB){
             if (dB < yMinDb || dB > yMaxDb) return;
             const float y = yToPx(dB, a);
             float dashes[] = { 6.0f, 6.0f };
             g.setColour(style.dbMarker);
             g.drawDashedLine({ a.getX(), y, a.getRight(), y }, dashes, 2, 1.4f);
-            g.setColour(juce::Colours::white.withAlpha(0.55f));
-            juce::String txt = (dB > 0 ? "+" : "") + juce::String(dB, 0) + " dB";
-            g.drawFittedText(txt, juce::Rectangle<int>((int)a.getX()+4, (int)y-10, 50, 18), juce::Justification::left, 1);
         };
         drawDbMarker(12.0f);
         drawDbMarker(-12.0f);
