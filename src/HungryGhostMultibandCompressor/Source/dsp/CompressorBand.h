@@ -42,6 +42,12 @@ public:
         lookaheadSamples = juce::jlimit(0, maxLA - 1, la);
     }
 
+    void setEffectiveSampleRate(double sr)
+    {
+        sampleRate = sr;
+        updateTimeConstants();
+    }
+
     void reset()
     {
         std::fill(env.begin(), env.end(), 0.0f);

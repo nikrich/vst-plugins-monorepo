@@ -81,6 +81,9 @@ public:
     std::vector<juce::AudioBuffer<float>> bandDry;
     std::vector<juce::AudioBuffer<float>> bandProc;
 
+    // Sidechain detector buffers (for external sidechain routing)
+    juce::AudioBuffer<float> scDetectorBuf1, scDetectorBuf2;
+
     // DSP components
     std::unique_ptr<hgmbc::BandSplitterIIR> splitter;
     std::vector<std::unique_ptr<hgmbc::CompressorBand>> compressors;
