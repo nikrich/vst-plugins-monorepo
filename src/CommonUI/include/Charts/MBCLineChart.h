@@ -49,6 +49,7 @@ public:
 
     MBCLineChart()
     {
+        // Enable keyboard focus to support Delete/Backspace for removing decorative bands
         setWantsKeyboardFocus(true);
     }
 
@@ -289,6 +290,7 @@ public:
     bool keyPressed(const juce::KeyPress& key) override
     {
         // Delete/Backspace removes selected decorative band (not primaries)
+        // Primary bands (indices 0-1) cannot be deleted; only decorative bands (index >= 2) can be removed
         if (selected >= 2 && (size_t)(selected-2) < decorBands.size())
         {
             if (key == juce::KeyPress::deleteKey || key == juce::KeyPress::backspaceKey)
@@ -296,7 +298,8 @@ public:
                 const int decorIndex = selected - 2;
                 decorBands.erase(decorBands.begin() + decorIndex);
 
-                // Update selection: deselect or select previous band if available
+                // Update selection: when removing the last band, select the new last band
+                // When removing an earlier band, the selection implicitly points to the shifted band
                 if (decorBands.empty())
                     selected = -1;
                 else if (decorIndex >= (int)decorBands.size())
