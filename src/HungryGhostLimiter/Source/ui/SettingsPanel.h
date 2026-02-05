@@ -16,6 +16,21 @@ public:
         ui::foundation::Typography::apply(titleLabel, ui::foundation::Typography::Style::Title);
         addAndMakeVisible(titleLabel);
 
+        themeLabel.setText("Theme", juce::dontSendNotification);
+        themeLabel.setJustificationType(juce::Justification::centredLeft);
+        themeLabel.setFont(juce::Font(juce::FontOptions(13.0f)));
+        themeLabel.setColour(juce::Label::textColourId, juce::Colours::white.withAlpha(0.9f));
+        addAndMakeVisible(themeLabel);
+
+        themeToggle.setButtonText("Dark / Light");
+        themeToggle.setClickingTogglesState(true);
+        themeToggle.setColour(juce::TextButton::buttonColourId, Style::theme().accent2);
+        themeToggle.setColour(juce::TextButton::buttonOnColourId, Style::theme().accent1);
+        themeToggle.setColour(juce::TextButton::textColourOnId, juce::Colours::white);
+        themeToggle.setColour(juce::TextButton::textColourOffId, juce::Colours::white);
+        themeToggle.onClick = [this]() { toggleTheme(); };
+        addAndMakeVisible(themeToggle);
+
         apiKeyLabel.setText("API Key", juce::dontSendNotification);
         ui::foundation::Typography::apply(apiKeyLabel,
                                          ui::foundation::Typography::Style::Subtitle,
@@ -56,6 +71,7 @@ public:
         addAndMakeVisible(closeButton);
 
         loadApiKey();
+        loadTheme();
     }
 
     void paint(juce::Graphics& g) override
@@ -86,6 +102,11 @@ public:
         auto area = inner.toNearestInt();
         titleLabel.setBounds(area.removeFromTop(32));
         area.removeFromTop(16);
+
+        themeLabel.setBounds(area.removeFromTop(24));
+        area.removeFromTop(4);
+        themeToggle.setBounds(area.removeFromTop(32));
+        area.removeFromTop(12);
 
         apiKeyLabel.setBounds(area.removeFromTop(24));
         area.removeFromTop(4);
@@ -135,11 +156,16 @@ public:
         return props->getValue("apiKey", "");
     }
 
+    void setOnThemeChanged(std::function<void()> callback)
+    {
+        onThemeChanged = callback;
+    }
+
 private:
     juce::Rectangle<float> getCardBounds() const
     {
         const float cardW = 340.0f;
-        const float cardH = 220.0f;
+        const float cardH = 300.0f;
         auto area = getLocalBounds().toFloat();
         return juce::Rectangle<float>(cardW, cardH).withCentre(area.getCentre());
     }
@@ -190,12 +216,52 @@ private:
         }
     }
 
+    void toggleTheme()
+    {
+        auto currentVar = Style::currentVariant();
+        auto newVar = (currentVar == Style::Variant::Dark) ? Style::Variant::Light : Style::Variant::Dark;
+
+        Style::setVariant(newVar);
+        themeToggle.setToggleState(newVar == Style::Variant::Light, juce::dontSendNotification);
+
+        saveTheme(newVar);
+
+        if (onThemeChanged)
+            onThemeChanged();
+    }
+
+    void saveTheme(Style::Variant variant)
+    {
+        auto props = getPropertiesFile();
+        if (props != nullptr)
+        {
+            props->setValue("theme", variant == Style::Variant::Dark ? "dark" : "light");
+            props->saveIfNeeded();
+        }
+    }
+
+    void loadTheme()
+    {
+        auto props = getPropertiesFile();
+        if (props != nullptr)
+        {
+            juce::String themeStr = props->getValue("theme", "dark");
+            auto variant = (themeStr == "light") ? Style::Variant::Light : Style::Variant::Dark;
+            Style::setVariant(variant);
+            themeToggle.setToggleState(variant == Style::Variant::Light, juce::dontSendNotification);
+        }
+    }
+
     juce::Label titleLabel;
+    juce::Label themeLabel;
+    juce::TextButton themeToggle;
     juce::Label apiKeyLabel;
     juce::TextEditor apiKeyInput;
     juce::Label errorLabel;
     juce::TextButton saveButton;
     juce::TextButton closeButton;
+
+    std::function<void()> onThemeChanged;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(SettingsPanel)
 };

@@ -74,6 +74,20 @@ HungryGhostLimiterAudioProcessorEditor::HungryGhostLimiterAudioProcessorEditor(H
     settingsPanel.setVisible(false);
     addChildComponent(settingsPanel);
 
+    // Set up theme change callback
+    settingsPanel.setOnThemeChanged([this]() {
+        // Repaint entire editor and all child components
+        repaint();
+        inputsCol.repaint();
+        threshold.repaint();
+        ceiling.repaint();
+        controlsCol.repaint();
+        meterCol.repaint();
+        outputCol.repaint();
+        logoHeader.repaint();
+        advanced.repaint();
+    });
+
     startTimerHz(30);
 }
 
