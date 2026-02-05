@@ -1,6 +1,7 @@
 #include "PluginEditor.h"
 #include "PluginProcessor.h"
 #include <Charts/MBCLineChart.h>
+#include <Foundation/Typography.h>
 
 using CommonUI::Charts::MBCLineChart;
 
@@ -19,7 +20,7 @@ HungryGhostMultibandCompressorAudioProcessorEditor::HungryGhostMultibandCompress
 
     // Band selector
     bandLabel.setText("Band", juce::dontSendNotification);
-    bandLabel.setJustificationType(juce::Justification::centred);
+    ui::foundation::Typography::apply(bandLabel, ui::foundation::Typography::Style::Subtitle);
     bandSel.addItem("1", 1);
     bandSel.addItem("2", 2);
 
@@ -223,7 +224,7 @@ void HungryGhostMultibandCompressorAudioProcessorEditor::resized()
         k.setBounds(cw.removeFromTop(120));
         // simple label under each knob
         juce::Label* lbl = new juce::Label({}, label);
-        lbl->setJustificationType(juce::Justification::centred);
+        ui::foundation::Typography::apply(*lbl, ui::foundation::Typography::Style::Caption);
         addAndMakeVisible(lbl);
         lbl->setBounds(cw.removeFromTop(18));
     };

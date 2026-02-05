@@ -1,7 +1,8 @@
 #pragma once
 
 #include <JuceHeader.h>
-#include <Styling/LookAndFeels.h>
+#include "ui/StyledKnob.h"
+#include "ui/StyledCombo.h"
 
 class HungryGhostSaturationAudioProcessor;
 
@@ -18,16 +19,24 @@ private:
 
     HungryGhostSaturationAudioProcessor& processor;
 
-    // Look and feel for knobs
-    DonutKnobLNF donutLNF;
+    // Title
+    juce::Label titleLabel;
 
     // Controls
-    juce::Slider inKnob, driveKnob, preTiltKnob, mixKnob, outKnob, asymKnob;
-    juce::ComboBox modelBox, osBox, postLPBox, channelModeBox;
+    StyledKnob inKnob { -24.0, 24.0, 0.01, 0.0, " dB" };
+    StyledKnob driveKnob { 0.0, 36.0, 0.01, 12.0, " dB" };
+    StyledKnob preTiltKnob { 0.0, 6.0, 0.01, 0.0, " dB/oct" };
+    StyledKnob mixKnob { 0.0, 1.0, 0.001, 1.0, "" };
+    StyledKnob outKnob { -24.0, 24.0, 0.01, 0.0, " dB" };
+    StyledKnob asymKnob { -0.5, 0.5, 0.001, 0.0, "" };
+    StyledCombo modelBox;
+    StyledCombo osBox;
+    StyledCombo postLPBox;
+    StyledCombo channelModeBox;
     juce::ToggleButton autoGainToggle { "Auto Gain" };
     juce::ToggleButton vocalToggle { "Vocal Lo-Fi" };
-    juce::Slider vocalAmt;
-    juce::ComboBox vocalStyleBox;
+    StyledKnob vocalAmt { 0.0, 1.0, 0.001, 1.0, "" };
+    StyledCombo vocalStyleBox;
 
     // Attachments
     std::unique_ptr<APVTS::SliderAttachment>  inAtt, driveAtt, preTiltAtt, mixAtt, outAtt, asymAtt;
@@ -35,9 +44,6 @@ private:
     std::unique_ptr<APVTS::ButtonAttachment>   autoGainAtt, vocalAtt;
     std::unique_ptr<APVTS::SliderAttachment>   vocalAmtAtt;
     std::unique_ptr<APVTS::ComboBoxAttachment> vocalStyleAtt;
-
-    void styleKnob(juce::Slider& s, double min, double max, double step, double def, const juce::String& suffix = {});
-    void styleCombo(juce::ComboBox& c);
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(HungryGhostSaturationAudioProcessorEditor)
 };
